@@ -1,0 +1,33 @@
+[package]
+name = "odometries"
+version = "0.1.0"
+edition.workspace = true
+authors = ["ZXY595 <3303057136@qq.com>"]
+description = "A library for tightly‑coupled error‑state Kalman filter based odometry systems"
+keywords = ["SLAM", "kalman", "navigation", "odometry", "robot", "voxelmap"]
+license = "MIT"
+repository = "https://github.com/ZXY595/odometries"
+
+[workspace]
+resolver = "3"
+members = ["odometries-macros"]
+
+[workspace.package]
+edition = "2024"
+
+[workspace.dependencies]
+nalgebra = "0.34"
+num-traits = "0.2"
+odometries-macros = { path = "./odometries-macros" }
+simba = "0.9"
+
+[dependencies]
+nalgebra.workspace = true
+nohash-hasher = "0.2"
+num-traits.workspace = true
+odometries-macros.workspace = true
+simba.workspace = true
+typed-arena = "2.0"
+
+[features]
+# no-std = [] # planning
