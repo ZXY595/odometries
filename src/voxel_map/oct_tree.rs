@@ -1,25 +1,37 @@
 mod branch;
 mod iter;
 mod leaf;
+mod storage;
 
 use crate::{
-    context::{Contextual, WithContext},
     frame::WorldPoint,
     voxel_map::{
-        oct_tree::{branch::Branch, leaf::Leaf},
+        oct_tree::{
+            branch::Branch,
+            leaf::Leaf,
+            storage::{RootTreeID, TreeID, TreeStorage},
+        },
         uncertain::{UncertainPlane, UncertainWorldPoint, plane::PlaneConfig},
     },
 };
 
 use nalgebra::{RealField, Scalar};
-use typed_arena::Arena;
 
-type TreeAllocator<'alloc, T> = Arena<OctTreeNode<'alloc, T>>;
 type UncertainWorldPoints<T> = Vec<UncertainWorldPoint<T>>;
 
-pub struct OctTreeNode<'alloc, T: Scalar> {
-    tree: OctTree<'alloc, T>,
+pub struct OctTreeRoot<T: Scalar> {
+    /// Allocator for the nodes in the tree.
+    storage: TreeStorage<T>,
+}
+
+pub(crate) struct OctTreeNode<T: Scalar> {
+    tree: OctTree<T>,
     state: NodeState<T>,
+}
+
+pub(crate) enum OctTree<T: Scalar> {
+    Branch(Branch<T>),
+    Leaf(Leaf<T>),
 }
 
 struct NodeState<T: Scalar> {
@@ -30,12 +42,41 @@ struct NodeState<T: Scalar> {
     depth: u8,
 }
 
-pub enum OctTree<'alloc, T: Scalar> {
-    Branch(Branch<'alloc, T>),
-    Leaf(Leaf<T>),
+impl<T> OctTreeRoot<T>
+where
+    T: RealField + Default,
+{
+    pub fn new(index: &WorldPoint<T>, voxel_size: T) -> Self {
+        let half_quarter_length = voxel_size.clone() / nalgebra::convert(2.0);
+        let side_quarter_length = voxel_size / nalgebra::convert(4.0);
+        let center = index.map_framed_point(|x| x.floor() + half_quarter_length.clone());
+        let root = OctTreeNode::new_leaf(Leaf::new(), center, side_quarter_length, 0);
+        Self {
+            storage: TreeStorage::new(root),
+        }
+    }
+    #[expect(unused)]
+    pub fn get_root_node(&self) -> &OctTreeNode<T> {
+        &self.storage[RootTreeID::new()]
+    }
+    pub fn push(&mut self, config: &PlaneConfig<T>, point: UncertainWorldPoint<T>) {
+        OctTreeNode::push(&None, config, &mut self.storage, point)
+    }
 }
 
-impl<'alloc, T: Scalar> OctTreeNode<'alloc, T> {
+impl<T: Scalar> OctTreeRoot<T> {
+    pub fn iter_planes(&self) -> impl Iterator<Item = &UncertainPlane<T>> {
+        self.storage.0.iter().filter_map(|(_, node)| {
+            if let OctTree::Leaf(Leaf { plane, .. }) = &node.tree {
+                plane.as_ref()
+            } else {
+                None
+            }
+        })
+    }
+}
+
+impl<T: Scalar> OctTreeNode<T> {
     pub const fn new_leaf(
         leaf: Leaf<T>,
         center: WorldPoint<T>,
@@ -51,8 +92,9 @@ impl<'alloc, T: Scalar> OctTreeNode<'alloc, T> {
             },
         }
     }
+    #[expect(unused)]
     pub const fn new_branch(
-        branch: Branch<'alloc, T>,
+        branch: Branch<T>,
         center: WorldPoint<T>,
         side_quarter_length: T,
         depth: u8,
@@ -68,57 +110,40 @@ impl<'alloc, T: Scalar> OctTreeNode<'alloc, T> {
     }
 }
 
-type ContextualTreeNodeMut<'this, 'alloc, T> = Contextual<
-    &'this mut OctTreeNode<'alloc, T>,
-    (&'this PlaneConfig<T>, &'alloc TreeAllocator<'alloc, T>),
->;
-
-impl<T> ContextualTreeNodeMut<'_, '_, T>
+impl<T> OctTreeNode<T>
 where
     T: RealField + Default,
 {
-    pub fn push(&mut self, point: UncertainWorldPoint<T>) {
-        let &mut Contextual {
-            inner:
-                &mut OctTreeNode {
-                    ref mut tree,
-                    ref state,
-                },
-            context: (config, allocator),
-        } = self;
+    pub fn push(
+        tree_id: &Option<TreeID<T>>,
+        config: &PlaneConfig<T>,
+        storage: &mut TreeStorage<T>,
+        point: UncertainWorldPoint<T>,
+    ) {
+        let (bottom_tree, coord) = iter::DescendIter::new(tree_id.clone(), &point, storage)
+            .last()
+            .unzip();
 
-        match tree {
-            OctTree::Branch(branch) => branch.with_context((config, allocator, state)).push(point),
-            OctTree::Leaf(leaf) => {
-                if let Err(points_not_plane) = leaf.with_context((config, state.depth)).push(point)
-                {
+        let vacant_alloc = storage.vacant_alloc();
+        let node = &mut storage[bottom_tree.clone()];
+        match (&mut node.tree, coord) {
+            (OctTree::Branch(branch), Some(coord)) => {
+                let new_leaf = Branch::new_child(&node.state, &coord, point);
+                let (new_id, alloc_leaf) = vacant_alloc.alloc(new_leaf);
+                branch[&coord] = new_id;
+                alloc_leaf(storage);
+            }
+            (OctTree::Leaf(leaf), _) => {
+                if let Err(points_not_plane) = leaf.push(config, node.state.depth, point) {
                     // pruning the leaf and creating a new branch
-                    let mut branch = Branch::default();
-                    branch
-                        .mut_with_context((config, allocator, state))
-                        .extend(points_not_plane);
-                    *tree = OctTree::Branch(branch)
+                    node.tree = OctTree::Branch(Branch::new());
+                    // could be optimize using `rayon`
+                    points_not_plane.into_iter().for_each(|point| {
+                        OctTreeNode::push(&tree_id.clone(), config, storage, point)
+                    });
                 }
             }
+            _ => {}
         }
-    }
-}
-
-impl<T> Extend<UncertainWorldPoint<T>> for ContextualTreeNodeMut<'_, '_, T>
-where
-    T: RealField + Default,
-{
-    fn extend<I>(&mut self, iter: I)
-    where
-        I: IntoIterator<Item = UncertainWorldPoint<T>>,
-    {
-        // TODO: could use `rayon`
-        iter.into_iter().for_each(|point| self.push(point));
-    }
-}
-
-impl<'alloc, T: Scalar> OctTreeNode<'alloc, T> {
-    pub fn iter_planes(&'alloc self) -> impl Iterator<Item = &'alloc UncertainPlane<T>> {
-        iter::PlaneIter::new(self)
     }
 }

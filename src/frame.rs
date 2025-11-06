@@ -42,8 +42,8 @@ impl<T, F> Framed<T, F> {
         Self::new(inner)
     }
     /// Apply a function to the inner value of the `Framed` type.
-    pub fn map_framed(self, f: impl FnOnce(T) -> T) -> Self {
-        Self {
+    pub fn map_framed<T2>(self, f: impl FnOnce(T) -> T2) -> Framed<T2, F> {
+        Framed {
             inner: f(self.inner),
             frame: PhantomData,
         }
@@ -52,6 +52,15 @@ impl<T, F> Framed<T, F> {
         let Framed { inner, frame: _ } = self;
         Framed {
             inner,
+            frame: PhantomData,
+        }
+    }
+}
+
+impl<T: Scalar, F> FramedPoint<T, F> {
+    pub fn map_framed_point<T2: Scalar>(&self, f: impl FnMut(T) -> T2) -> FramedPoint<T2, F> {
+        Framed {
+            inner: self.inner.map(f),
             frame: PhantomData,
         }
     }

@@ -6,6 +6,7 @@ use super::State;
 
 #[derive(KFState)]
 #[Element(T)]
+#[expect(unused)]
 pub struct KState<T>
 where
     T: Scalar,

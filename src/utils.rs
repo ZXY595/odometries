@@ -147,24 +147,36 @@ where
 }
 
 pub trait ToVoxelIndex {
+    type VoxelSize;
     type Index: nohash_hasher::IsEnabled + Eq + Hash;
-    fn to_voxel_index(self) -> Self::Index;
+    fn assume_voxel_index(self) -> Self::Index;
+    fn to_voxel_index(&self, voxel_size: Self::VoxelSize) -> Self::Index;
 }
 
 impl ToVoxelIndex for Point3<f64> {
+    type VoxelSize = f64;
     type Index = i64;
-    fn to_voxel_index(self) -> Self::Index {
+    fn assume_voxel_index(self) -> Self::Index {
         let index = self.map(|x| x.floor() as Self::Index);
         ((index.x * 73856093) ^ (index.y * 471943) ^ (index.z * 83492791)) % 10000000
+    }
+    fn to_voxel_index(&self, voxel_size: Self::VoxelSize) -> Self::Index {
+        let index = self / voxel_size;
+        index.assume_voxel_index()
     }
 }
 
 impl ToVoxelIndex for Point3<f32> {
+    type VoxelSize = f32;
     type Index = i32;
-    fn to_voxel_index(self) -> Self::Index {
+    fn assume_voxel_index(self) -> Self::Index {
         let index = self.map(|x| x.floor() as Self::Index);
-        // TODO: check if this is correct
+        // TODO: check if this is correct, might be overflowing.
         ((index.x * 73856093) ^ (index.y * 471943) ^ (index.z * 83492791)) % 10000000
+    }
+    fn to_voxel_index(&self, voxel_size: Self::VoxelSize) -> Self::Index {
+        let index = self / voxel_size;
+        index.assume_voxel_index()
     }
 }
 

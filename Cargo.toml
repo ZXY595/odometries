@@ -27,7 +27,7 @@ nohash-hasher = "0.2"
 num-traits.workspace = true
 odometries-macros.workspace = true
 simba.workspace = true
-typed-arena = "2.0"
+slab = "0.4"
 
 [features]
 # no-std = [] # planning

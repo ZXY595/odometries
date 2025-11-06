@@ -5,8 +5,6 @@ use crate::voxel_map::uncertain::{
 
 use nalgebra::{RealField, Scalar};
 
-use crate::context::Contextual;
-
 use super::UncertainWorldPoints;
 
 pub struct Leaf<T: Scalar> {
@@ -31,20 +29,22 @@ impl<T: Scalar> Leaf<T> {
     }
 }
 
-impl<T> Contextual<&mut Leaf<T>, (&PlaneConfig<T>, u8)>
+impl<T> Leaf<T>
 where
     T: RealField + Default,
 {
     /// Returns
     ///
     /// - `Err(_)` if the try to create a plane but not vilid, this might need a tree pruning.
-    pub fn push(&mut self, point: UncertainWorldPoint<T>) -> Result<(), UncertainWorldPoints<T>> {
-        let &mut Contextual {
-            inner: Leaf {
-                plane,
-                cached_points,
-            },
-            context: (config, depth),
+    pub fn push(
+        &mut self,
+        config: &PlaneConfig<T>,
+        depth: u8,
+        point: UncertainWorldPoint<T>,
+    ) -> Result<(), UncertainWorldPoints<T>> {
+        let Leaf {
+            plane,
+            cached_points,
         } = self;
 
         let Some(points) = cached_points else {

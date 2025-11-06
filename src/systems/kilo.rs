@@ -9,10 +9,10 @@ use state::State;
 use crate::{
     eskf::Eskf,
     utils::ToVoxelIndex,
-    voxel_map::{self, BoxedVoxelMap, VoxelMap},
+    voxel_map::{self, VoxelMap},
 };
 
-use nalgebra::{Point3, Scalar, SimdRealField};
+use nalgebra::{Point3, RealField, Scalar};
 
 pub use state::ProcessCovConfig;
 
@@ -37,7 +37,7 @@ where
     Point3<T>: ToVoxelIndex,
 {
     eskf: Eskf<State<T>>,
-    map: BoxedVoxelMap<T>,
+    map: VoxelMap<T>,
 }
 
 pub struct Config<T: Scalar> {
@@ -47,14 +47,14 @@ pub struct Config<T: Scalar> {
 
 impl<T> ILO<T>
 where
-    T: Scalar + Default + SimdRealField<Element: SimdRealField>,
-    Point3<T>: ToVoxelIndex,
+    T: RealField + Default,
+    Point3<T>: ToVoxelIndex<VoxelSize = T>,
 {
     pub fn new(config: Config<T>) -> Self {
         let eskf = Eskf::new(config.process_cov.into());
         Self {
             eskf,
-            map: VoxelMap::new_boxed(config.voxel_map),
+            map: VoxelMap::new(config.voxel_map),
         }
     }
     // TODO: add lidar points and imu measurements to the filter
