@@ -32,6 +32,9 @@ where
     ) -> VectorViewMut<'_, Self::Element, Self::Dim, Self::RStride, U1> {
         let (rows, cols) = self.shape_generic();
         let min_dim = rows.min(cols);
+        // # SAFETY:
+        //
+        // The data is guaranteed to be contiguous and in row-major order.
         unsafe {
             let data = ViewStorageMut::from_raw_parts(
                 self.data.ptr_mut(),
@@ -46,7 +49,8 @@ where
 /// A type that can provides a positive definite substitute value
 /// for some inverse operations like [`Cholesky::new_with_substitute`]
 ///
-/// # Safety
+/// # SAFETY
+///
 /// the value of [`Substitutive::SUBSTITUTE`] must return a positive definite value
 pub unsafe trait Substitutive: ComplexField {
     const SUBSTITUTE: Self;
@@ -60,13 +64,15 @@ pub unsafe trait Substitutive: ComplexField {
     }
 }
 
-/// # Safety
+/// # SAFETY:
+///
 /// returned value is positive definite
 unsafe impl Substitutive for f64 {
     const SUBSTITUTE: Self = 0.0001;
 }
 
-/// # Safety
+/// # SAFETY:
+///
 /// returned value is positive definite
 unsafe impl Substitutive for f32 {
     const SUBSTITUTE: Self = 0.0001;
