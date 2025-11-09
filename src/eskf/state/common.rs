@@ -1,5 +1,5 @@
 pub(crate) mod marker;
-use super::macro_support::*;
+use super::macro_export::*;
 use std::{
     marker::PhantomData,
     ops::{AddAssign, Deref, DerefMut},
@@ -9,7 +9,7 @@ use nalgebra::{
     ClosedAddAssign, DimNameSum, IsometryMatrix3, RealField, Rotation3, Scalar, Storage,
     Translation3, U0, U3, U6, Vector, Vector3,
 };
-use odometries_macros::{AddAssignVector, KFState};
+use odometries_macros::{KFState, Unbiased, VectorAddAssign};
 
 pub struct MarkedState<S, M>(pub S, PhantomData<M>);
 
@@ -36,30 +36,41 @@ impl<S, M> DerefMut for MarkedState<S, M> {
 pub type Vector3State<T, S> = MarkedState<Vector3<T>, S>;
 pub type IsometryState<T, S> = MarkedState<IsometryMatrix3<T>, S>;
 
+impl<T, S> Unbiased for Vector3State<T, S> {}
+impl<T, S> Unbiased for IsometryState<T, S> {}
+
 pub type PoseState<T> = IsometryState<T, marker::Pose>;
 pub type RotationState<T> = Vector3State<T, marker::Rotation>;
 pub type PositionState<T> = Vector3State<T, marker::Position>;
 pub type VelocityState<T> = Vector3State<T, marker::Velocity>;
-pub type AccelBiasState<T> = Vector3State<T, marker::AccelBias>;
-pub type GyroBiasState<T> = Vector3State<T, marker::GyroBias>;
 pub type GravityState<T> = Vector3State<T, marker::Gravity>;
-pub type LinearAccelState<T> = Vector3State<T, marker::LinearAccel>;
-pub type AngularAccelState<T> = Vector3State<T, marker::AngularAccel>;
+pub type LinearAccState<T> = Vector3State<T, marker::LinearAccel>;
+pub type LinearAccBiasState<T> = Vector3State<T, marker::AccelBias>;
+pub type AngularAccState<T> = Vector3State<T, marker::AngularAccel>;
+pub type AngularAccBiasState<T> = Vector3State<T, marker::GyroBias>;
 
-#[derive(KFState, AddAssignVector, Default)]
-#[Element(T)]
-#[Predicates(ClosedAddAssign)]
-pub struct BiasState<T: Scalar> {
-    pub accel: AccelBiasState<T>,
-    pub gyro: GyroBiasState<T>,
+#[derive(KFState, VectorAddAssign, Default)]
+#[element(T)]
+#[vector_add_assign(predicates(ClosedAddAssign))]
+pub struct AccWithBiasState<T: Scalar> {
+    pub acc: AccState<T>,
+    pub bias: BiasState<T>,
 }
 
-#[derive(KFState, AddAssignVector, Default)]
-#[Element(T)]
-#[Predicates(ClosedAddAssign)]
-pub struct AccelState<T: Scalar> {
-    pub linear: LinearAccelState<T>,
-    pub angular: AngularAccelState<T>,
+#[derive(KFState, VectorAddAssign, Unbiased, Default)]
+#[element(T)]
+#[vector_add_assign(predicates(ClosedAddAssign))]
+pub struct AccState<T: Scalar> {
+    pub linear: LinearAccState<T>,
+    pub angular: AngularAccState<T>,
+}
+
+#[derive(KFState, VectorAddAssign, Unbiased, Default)]
+#[element(T)]
+#[vector_add_assign(predicates(ClosedAddAssign))]
+pub struct BiasState<T: Scalar> {
+    pub linear: LinearAccBiasState<T>,
+    pub angular: AngularAccBiasState<T>,
 }
 
 impl<T: Scalar, M> super::KFState for Vector3State<T, M> {

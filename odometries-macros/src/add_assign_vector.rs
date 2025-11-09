@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
 use syn::{
-    FieldsNamed, Generics, Ident, Result, Token, TypeParamBound, WherePredicate,
+    FieldsNamed, Generics, Ident, MetaList, Result, Token, TypeParamBound, WherePredicate,
     parse::{Parse, ParseStream},
     parse_quote,
     punctuated::Punctuated,
@@ -28,9 +28,13 @@ impl Parse for Input {
 
         let predicates_bounds = attrs
             .iter()
-            .find(|attr| attr.path().is_ident("Predicates"))
+            .find(|attr| attr.path().is_ident("vector_add_assign"))
             .and_then(|attr| {
-                attr.parse_args_with(Punctuated::<TypeParamBound, Token![,]>::parse_terminated)
+                let meta = attr
+                    .parse_args::<MetaList>()
+                    .ok()
+                    .filter(|meta| meta.path.is_ident("predicates"))?;
+                meta.parse_args_with(Punctuated::<TypeParamBound, Token![,]>::parse_terminated)
                     .ok()
             });
 
@@ -56,42 +60,36 @@ impl ToTokens for Input {
 
         let fields = &fields.named;
 
-        let fields_add_assign = fields
-            .iter()
-            .filter_map(|field| {
-                let ident = field.ident.as_ref()?;
-                let bounds = field
-                    .attrs
-                    .iter()
-                    .find(|attr| attr.path().is_ident("Predicates"))
-                    .and_then(|attr| {
-                        attr.parse_args_with(
-                            Punctuated::<TypeParamBound, Token![,]>::parse_terminated,
-                        )
+        let fields_add_assign = fields.iter().filter_map(|field| {
+            let ident = field.ident.as_ref()?;
+            let bounds = field
+                .attrs
+                .iter()
+                .find(|attr| attr.path().is_ident("predicates"))
+                .and_then(|attr| {
+                    attr.parse_args_with(Punctuated::<TypeParamBound, Token![,]>::parse_terminated)
                         .ok()
-                    });
-                Some((ident, &field.ty, bounds))
-            })
-            .map(|(ident, ty, bounds)| {
-                let element_ty = quote! {
-                    <#ty as KFState>::Element
-                };
-                (
-                    bounds.map(|bounds| {
-                        parse_quote! {
-                            #element_ty: #bounds
-                        }
-                    }),
-                    quote! {
-                        self.#ident += rhs.rows_generic(
-                            SubStateOffset::<#ty, Self>::DIM,
-                            <#ty as KFState>::Dim::name()
-                        );
-                    },
-                )
-            });
+                });
+            let ty = &field.ty;
+            let element_ty = quote! {
+                <#ty as KFState>::Element
+            };
+            Some((
+                bounds.map(|bounds| {
+                    parse_quote! {
+                        #element_ty: #bounds
+                    }
+                }),
+                quote! {
+                    self.#ident += rhs.rows_generic(
+                        SubStateOffset::<#ty, Self>::DIM,
+                        <#ty as KFState>::Dim::name()
+                    );
+                },
+            ))
+        });
         let (fields_predicates, sub_add_assigns): (Vec<Option<WherePredicate>>, TokenStream2) =
-            itertools::multiunzip(fields_add_assign);
+            fields_add_assign.unzip();
 
         let ty_generics = generics.split_for_impl().1;
 

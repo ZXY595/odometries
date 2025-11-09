@@ -19,7 +19,7 @@ pub struct Residual<'a, T: Scalar> {
 impl<T> VoxelMap<T>
 where
     T: RealField + Default,
-    Point3<T>: ToVoxelIndex<VoxelSize = T>,
+    Point3<T>: ToVoxelIndex<T>,
 {
     pub fn get_residual(&self, point: UncertainWorldPoint<T>) -> Option<Residual<'_, T>> {
         let index = point.to_voxel_index(self.config.voxel_size.clone());
@@ -55,7 +55,7 @@ where
                 residual.distance_to_plane
                     < self.config.sigma_ratio.clone() * residual.sigma_sqrt.clone()
             })
-            .min_by(|a, b| {
+            .max_by(|a, b| {
                 a.probability()
                     .partial_cmp(&b.probability())
                     .unwrap_or(Ordering::Equal)

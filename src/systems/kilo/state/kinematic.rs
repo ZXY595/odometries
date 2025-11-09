@@ -1,11 +1,11 @@
-use crate::eskf::state::{common::Vector3State, macro_support::*};
+use crate::eskf::state::{common::Vector3State, macro_export::*};
 use nalgebra::{DimNameSum, Scalar};
 use odometries_macros::KFState;
 
 use super::State;
 
 #[derive(KFState)]
-#[Element(T)]
+#[element(T)]
 #[expect(unused)]
 pub struct KState<T>
 where

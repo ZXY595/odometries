@@ -9,6 +9,8 @@ use super::OctTreeNode;
 use nalgebra::Scalar;
 use slab::Slab;
 
+/// TODO: add another storage type that implements [`Send`] and [`Sync`],
+/// for thread-safe storage to integrate with the `rayon` crate.
 pub(crate) struct TreeStorage<T: Scalar>(pub(crate) Slab<OctTreeNode<T>>);
 
 #[derive(Debug, PartialEq)]
@@ -130,17 +132,19 @@ impl<T: Scalar> TreeStorage<T> {
 
 impl<T: Scalar> VacantAlloc<T> {
     /// Allocates the given node and returns a closure that can be used to insert it into the [`TreeStorage`].
-    #[must_use = "The closure must be called to actually insert the node into the tree."]
+    #[must_use = "The returned closure must be called to actually insert the node into the tree."]
     pub fn alloc(
         self,
         node: OctTreeNode<T>,
-    ) -> (Option<TreeID<T>>, impl FnOnce(&mut TreeStorage<T>)) {
+        f: impl FnOnce(Option<TreeID<T>>),
+    ) -> impl FnOnce(&mut TreeStorage<T>) + 'static {
         #[cfg(debug_assertions)]
         let index = self.0.clone();
-        (self.0, move |storage| {
+        f(self.0);
+        move |storage| {
             // Add more test here
             debug_assert_eq!(index, storage.alloc(node));
-        })
+        }
     }
 }
 

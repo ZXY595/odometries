@@ -8,6 +8,7 @@ use state::State;
 
 use crate::{
     eskf::Eskf,
+    frame::BodyPoint,
     utils::ToVoxelIndex,
     voxel_map::{self, VoxelMap},
 };
@@ -34,7 +35,7 @@ pub use state::ProcessCovConfig;
 pub struct ILO<T>
 where
     T: Scalar,
-    Point3<T>: ToVoxelIndex,
+    Point3<T>: ToVoxelIndex<T>,
 {
     eskf: Eskf<State<T>>,
     map: VoxelMap<T>,
@@ -48,7 +49,7 @@ pub struct Config<T: Scalar> {
 impl<T> ILO<T>
 where
     T: RealField + Default,
-    Point3<T>: ToVoxelIndex<VoxelSize = T>,
+    Point3<T>: ToVoxelIndex<T>,
 {
     pub fn new(config: Config<T>) -> Self {
         let eskf = Eskf::new(config.process_cov.into());
@@ -58,4 +59,17 @@ where
         }
     }
     // TODO: add lidar points and imu measurements to the filter
+}
+
+impl<T> Extend<BodyPoint<T>> for ILO<T>
+where
+    T: Scalar,
+    Point3<T>: ToVoxelIndex<T>,
+{
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = BodyPoint<T>>,
+    {
+        todo!()
+    }
 }

@@ -36,7 +36,7 @@ where
     /// Returns
     ///
     /// - `Err(_)` if the try to create a plane but not vilid, this might need a tree pruning.
-    pub fn push(
+    pub fn insert(
         &mut self,
         config: &PlaneConfig<T>,
         depth: u8,

@@ -1,8 +1,9 @@
 use syn::{
-    Attribute, Data, DeriveInput, Error, Fields, FieldsNamed, Generics, Ident, Result, Visibility,
+    Attribute, Data, DeriveInput, Fields, FieldsNamed, Generics, Ident, Result, Visibility,
     parse::{Parse, ParseStream},
 };
 
+#[expect(dead_code)]
 pub struct StructNamed {
     pub attrs: Vec<Attribute>,
     pub vis: Visibility,
@@ -22,10 +23,10 @@ impl Parse for StructNamed {
         } = input.parse()?;
 
         let Data::Struct(data) = data else {
-            return Err(Error::new(input.span(), "Expected a struct"));
+            return Err(input.error("Expected a struct"));
         };
         let Fields::Named(fields) = data.fields else {
-            return Err(Error::new(input.span(), "Expected named fields"));
+            return Err(input.error("Expected named fields"));
         };
 
         Ok(StructNamed {

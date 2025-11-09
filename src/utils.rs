@@ -88,7 +88,8 @@ where
 {
     fn cholesky_inverse_with_substitute(self) -> Self {
         let cholesky = Cholesky::new_with_substitute(self, T::SUBSTITUTE);
-        // Safety:
+        // # SAFETY:
+        //
         // this is safe because the value of `T::SUBSTITUTE` is positive definite
         // and the Cholesky decomposition is always successful
         let cholesky = unsafe { cholesky.unwrap_unchecked() };
@@ -152,35 +153,32 @@ where
     }
 }
 
-pub trait ToVoxelIndex {
-    type VoxelSize;
+pub trait ToVoxelIndex<S> {
     type Index: nohash_hasher::IsEnabled + Eq + Hash;
     fn assume_voxel_index(self) -> Self::Index;
-    fn to_voxel_index(&self, voxel_size: Self::VoxelSize) -> Self::Index;
+    fn to_voxel_index(&self, voxel_size: S) -> Self::Index;
 }
 
-impl ToVoxelIndex for Point3<f64> {
-    type VoxelSize = f64;
+impl ToVoxelIndex<f64> for Point3<f64> {
     type Index = i64;
     fn assume_voxel_index(self) -> Self::Index {
         let index = self.map(|x| x.floor() as Self::Index);
         ((index.x * 73856093) ^ (index.y * 471943) ^ (index.z * 83492791)) % 10000000
     }
-    fn to_voxel_index(&self, voxel_size: Self::VoxelSize) -> Self::Index {
+    fn to_voxel_index(&self, voxel_size: f64) -> Self::Index {
         let index = self / voxel_size;
         index.assume_voxel_index()
     }
 }
 
-impl ToVoxelIndex for Point3<f32> {
-    type VoxelSize = f32;
+impl ToVoxelIndex<f32> for Point3<f32> {
     type Index = i32;
     fn assume_voxel_index(self) -> Self::Index {
         let index = self.map(|x| x.floor() as Self::Index);
         // TODO: check if this is correct, might be overflowing.
         ((index.x * 73856093) ^ (index.y * 471943) ^ (index.z * 83492791)) % 10000000
     }
-    fn to_voxel_index(&self, voxel_size: Self::VoxelSize) -> Self::Index {
+    fn to_voxel_index(&self, voxel_size: f32) -> Self::Index {
         let index = self / voxel_size;
         index.assume_voxel_index()
     }

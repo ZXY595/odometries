@@ -16,12 +16,12 @@ use crate::{
     },
 };
 
-type VoxelIndex<T> = <Point3<T> as ToVoxelIndex>::Index;
+type VoxelIndex<T> = <Point3<T> as ToVoxelIndex<T>>::Index;
 
 pub struct VoxelMap<T>
 where
     T: Scalar,
-    Point3<T>: ToVoxelIndex,
+    Point3<T>: ToVoxelIndex<T>,
 {
     roots: IntMap<VoxelIndex<T>, OctTreeRoot<T>>,
     config: Config<T>,
@@ -55,7 +55,7 @@ pub struct Config<T> {
 impl<T> VoxelMap<T>
 where
     T: Scalar + Default,
-    Point3<T>: ToVoxelIndex,
+    Point3<T>: ToVoxelIndex<T>,
 {
     pub fn new(config: Config<T>) -> Self {
         Self {
@@ -68,7 +68,7 @@ where
 impl<T> VoxelMap<T>
 where
     T: RealField + Default,
-    Point3<T>: ToVoxelIndex<VoxelSize = T>,
+    Point3<T>: ToVoxelIndex<T>,
 {
     pub fn insert(&mut self, point: UncertainWorldPoint<T>) {
         let voxel_size = &self.config.voxel_size;
@@ -77,15 +77,19 @@ where
             .roots
             .entry(index)
             .or_insert_with(|| OctTreeRoot::new(point.deref(), voxel_size.clone()));
-        root.push(&self.config.plane, point);
+        root.insert(&self.config.plane, point);
     }
 }
 impl<T> Extend<UncertainWorldPoint<T>> for VoxelMap<T>
 where
     T: RealField + Default,
-    Point3<T>: ToVoxelIndex<VoxelSize = T>,
+    Point3<T>: ToVoxelIndex<T>,
 {
-    fn extend<I: IntoIterator<Item = UncertainWorldPoint<T>>>(&mut self, iter: I) {
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = UncertainWorldPoint<T>>,
+    {
+        // TODO: could be optimized by using `rayon`
         iter.into_iter().for_each(|point| self.insert(point));
     }
 }

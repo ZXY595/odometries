@@ -28,6 +28,8 @@ num-traits.workspace = true
 odometries-macros.workspace = true
 simba.workspace = true
 slab = "0.4"
+rayon = { version = "1.11", optional = true }
 
 [features]
+# rayon = [] # planning to add rayon support
 # no-std = [] # planning

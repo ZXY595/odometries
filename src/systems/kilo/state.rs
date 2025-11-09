@@ -1,32 +1,65 @@
 mod kinematic;
 
-use odometries_macros::{AddAssignVector, KFState};
+use odometries_macros::{AnyStorageMatrix, KFState, VectorAddAssign, sub_state_of};
 
 use crate::eskf::{
     Covariance,
-    state::{KFState, common::*, macro_support::*},
+    state::{
+        StateDim,
+        common::*,
+        macro_export::*,
+        sensitivity::{SensitiveTo, UnbiasedState},
+    },
 };
 
-use nalgebra::{OMatrix, RealField, Scalar, SimdRealField};
+use nalgebra::{ClosedAddAssign, OMatrix, RealField, Scalar, SimdRealField};
 
-#[derive(KFState, AddAssignVector)]
-#[Element(T)]
-#[Predicates(RealField)]
+#[derive(KFState, VectorAddAssign)]
+#[element(T)]
+#[vector_add_assign(predicates(RealField))]
 pub struct State<T: Scalar> {
     /// The pose of the body in the world frame.
     /// use to transform from body to world frame.
-    #[SubStates(RotationState<T>, PositionState<T>)]
     pub pose: PoseState<T>,
 
     pub velocity: VelocityState<T>,
 
-    #[SubStates(AccelBiasState<T>, GyroBiasState<T>)]
-    pub bias: BiasState<T>,
-
     pub gravity: GravityState<T>,
 
-    #[SubStates(LinearAccelState<T>, AngularAccelState<T>)]
-    pub acc: AccelState<T>,
+    pub acc_with_bias: AccWithBiasState<T>,
+}
+
+#[sub_state_of(State)]
+struct PoseState<T: Scalar>(RotationState<T>, PositionState<T>);
+
+#[sub_state_of(State)]
+struct AccWithBiasState<T: Scalar>(AccState<T>, BiasState<T>);
+
+#[sub_state_of(State)]
+struct AccState<T: Scalar>(LinearAccState<T>, AngularAccState<T>);
+
+#[sub_state_of(State)]
+struct BiasState<T: Scalar>(LinearAccBiasState<T>, AngularAccBiasState<T>);
+
+impl<T> SensitiveTo<State<T>> for AccWithBiasState<T>
+where
+    T: Scalar + ClosedAddAssign,
+{
+    type SensiDim = StateDim<AccState<T>>;
+
+    fn sensitivity_to_super(
+        cov: &Covariance<State<T>>,
+    ) -> AnyStorageMatrix!(T, StateDim<State<T>>, Self::SensiDim) {
+        UnbiasedState::<AccState<T>>::sensitivity_to_super(cov)
+            + UnbiasedState::<BiasState<T>>::sensitivity_to_super(cov)
+    }
+
+    fn sensitivity_from_super(
+        cov: &Covariance<State<T>>,
+    ) -> AnyStorageMatrix!(T, Self::SensiDim, StateDim<State<T>>) {
+        UnbiasedState::<AccState<T>>::sensitivity_from_super(cov)
+            + UnbiasedState::<BiasState<T>>::sensitivity_from_super(cov)
+    }
 }
 
 pub struct ProcessCovConfig<T: Scalar> {
@@ -46,15 +79,15 @@ where
         let mut cov = Covariance::<State<T>>(OMatrix::default());
         cov.sub_covariance_mut::<VelocityState<T>>()
             .fill_diagonal(value.velocity);
-        cov.sub_covariance_mut::<AccelBiasState<T>>()
+        cov.sub_covariance_mut::<LinearAccBiasState<T>>()
             .fill_diagonal(value.accel_bias);
-        cov.sub_covariance_mut::<GyroBiasState<T>>()
+        cov.sub_covariance_mut::<AngularAccBiasState<T>>()
             .fill_diagonal(value.gyro_bias);
         cov.sub_covariance_mut::<GravityState<T>>()
             .fill_diagonal(value.gravity);
-        cov.sub_covariance_mut::<LinearAccelState<T>>()
+        cov.sub_covariance_mut::<LinearAccState<T>>()
             .fill_diagonal(value.linear);
-        cov.sub_covariance_mut::<AngularAccelState<T>>()
+        cov.sub_covariance_mut::<AngularAccState<T>>()
             .fill_diagonal(value.angular);
         cov
     }
@@ -68,9 +101,8 @@ where
         Self {
             pose: Default::default(),
             velocity: Default::default(),
-            bias: Default::default(),
             gravity: Default::default(),
-            acc: Default::default(),
+            acc_with_bias: Default::default(),
         }
     }
 }
@@ -104,25 +136,21 @@ mod tests {
         assert_eq!(SubStateOffset::<VelocityState<TestT>>::DIM, 6);
         assert_eq!(SubStateEndOffset::<VelocityState<TestT>>::DIM, 9);
 
-        assert_eq!(SubStateOffset::<BiasState<TestT>>::DIM, 9);
-        assert_eq!(SubStateEndOffset::<BiasState<TestT>>::DIM, 15);
-
-        assert_eq!(SubStateOffset::<AccelBiasState<TestT>>::DIM, 9);
-        assert_eq!(SubStateEndOffset::<AccelBiasState<TestT>>::DIM, 12);
-
-        assert_eq!(SubStateOffset::<GyroBiasState<TestT>>::DIM, 12);
-        assert_eq!(SubStateEndOffset::<GyroBiasState<TestT>>::DIM, 15);
-
         assert_eq!(SubStateOffset::<GravityState<TestT>>::DIM, 15);
         assert_eq!(SubStateEndOffset::<GravityState<TestT>>::DIM, 18);
 
-        assert_eq!(SubStateOffset::<AccelState<TestT>>::DIM, 18);
-        assert_eq!(SubStateEndOffset::<AccelState<TestT>>::DIM, 24);
+        assert_eq!(SubStateOffset::<AccState<TestT>>::DIM, 9);
+        assert_eq!(SubStateEndOffset::<AccState<TestT>>::DIM, 15);
+        assert_eq!(SubStateOffset::<LinearAccState<TestT>>::DIM, 9);
+        assert_eq!(SubStateEndOffset::<LinearAccState<TestT>>::DIM, 12);
+        assert_eq!(SubStateOffset::<AngularAccState<TestT>>::DIM, 12);
+        assert_eq!(SubStateEndOffset::<AngularAccState<TestT>>::DIM, 15);
 
-        assert_eq!(SubStateOffset::<LinearAccelState<TestT>>::DIM, 18);
-        assert_eq!(SubStateEndOffset::<LinearAccelState<TestT>>::DIM, 21);
-
-        assert_eq!(SubStateOffset::<AngularAccelState<TestT>>::DIM, 21);
-        assert_eq!(SubStateEndOffset::<AngularAccelState<TestT>>::DIM, 24);
+        assert_eq!(SubStateOffset::<BiasState<TestT>>::DIM, 18);
+        assert_eq!(SubStateEndOffset::<BiasState<TestT>>::DIM, 24);
+        assert_eq!(SubStateOffset::<LinearAccBiasState<TestT>>::DIM, 18);
+        assert_eq!(SubStateEndOffset::<LinearAccBiasState<TestT>>::DIM, 21);
+        assert_eq!(SubStateOffset::<AngularAccBiasState<TestT>>::DIM, 21);
+        assert_eq!(SubStateEndOffset::<AngularAccBiasState<TestT>>::DIM, 24);
     }
 }

@@ -59,8 +59,8 @@ where
     pub fn get_root_node(&self) -> &OctTreeNode<T> {
         &self.storage[RootTreeID::new()]
     }
-    pub fn push(&mut self, config: &PlaneConfig<T>, point: UncertainWorldPoint<T>) {
-        OctTreeNode::push(&None, config, &mut self.storage, point)
+    pub fn insert(&mut self, config: &PlaneConfig<T>, point: UncertainWorldPoint<T>) {
+        OctTreeNode::insert(&None, config, &mut self.storage, point)
     }
 }
 
@@ -114,7 +114,7 @@ impl<T> OctTreeNode<T>
 where
     T: RealField + Default,
 {
-    pub fn push(
+    pub fn insert(
         tree_id: &Option<TreeID<T>>,
         config: &PlaneConfig<T>,
         storage: &mut TreeStorage<T>,
@@ -129,17 +129,15 @@ where
         match (&mut node.tree, coord) {
             (OctTree::Branch(branch), Some(coord)) => {
                 let new_leaf = Branch::new_child(&node.state, &coord, point);
-                let (new_id, alloc_leaf) = vacant_alloc.alloc(new_leaf);
-                branch[&coord] = new_id;
-                alloc_leaf(storage);
+                vacant_alloc.alloc(new_leaf, |new_id| branch[&coord] = new_id)(storage);
             }
             (OctTree::Leaf(leaf), _) => {
-                if let Err(points_not_plane) = leaf.push(config, node.state.depth, point) {
+                if let Err(points_not_plane) = leaf.insert(config, node.state.depth, point) {
                     // pruning the leaf and creating a new branch
                     node.tree = OctTree::Branch(Branch::new());
-                    // could be optimize using `rayon`
+                    // TODO: could be optimize using `rayon`
                     points_not_plane.into_iter().for_each(|point| {
-                        OctTreeNode::push(&tree_id.clone(), config, storage, point)
+                        OctTreeNode::insert(&tree_id.clone(), config, storage, point)
                     });
                 }
             }
