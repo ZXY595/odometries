@@ -25,7 +25,7 @@ where
         let index = point.to_voxel_index(self.config.voxel_size.clone());
         let root = self.roots.get(&index)?;
         let radius_factor: T = nalgebra::convert(3.0);
-        // TODO: could be optimized by using `rayon`
+        // TODO: could be optimized by using `rayon`?
         root.iter_planes()
             .map(|plane| {
                 let normal = &plane.normal;

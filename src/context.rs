@@ -1,15 +1,11 @@
 use std::ops::{Deref, DerefMut};
 
-// use reborrow::ReborrowMut;
-
 /// A helper struct to hold a value with its context.
 pub struct InContext<T, C> {
     /// The inner value of [`Contextual`]
     pub inner: T,
     pub context: C,
 }
-
-// impl<'short, T: ReborrowMut<'short>, C> ReborrowMut<'short> for Contextual<T, C> {}
 
 impl<T, C> InContext<T, C> {
     pub const fn new(inner: T, context: C) -> Self {

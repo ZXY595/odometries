@@ -7,16 +7,17 @@ use std::{
 
 pub use model::ObserveModel;
 use nalgebra::{
-    ClosedMulAssign, DefaultAllocator, Dim, DimAdd, DimMin, DimName, OMatrix, OVector, RealField,
-    U1, allocator::Allocator,
+    ClosedMulAssign, DefaultAllocator, Dim, DimAdd, DimMin, DimName, OVector, U1,
+    allocator::Allocator,
 };
+use num_traits::Zero;
 
 use crate::{
     eskf::{
-        observe::model::{DefaultObserveModel, NoObserveModel},
+        observe::model::{DefaultModel, NoModel},
         state::{
             KFState,
-            sensitivity::{SensitiveTo, SensitivityDim},
+            sensitivity::{SensitiveTo, SensitivityDim, UnbiasedState},
         },
     },
     utils::{InverseWithSubstitute, Substitutive, ViewDiagonalMut},
@@ -24,76 +25,51 @@ use crate::{
 
 use super::{Eskf, StateObserver};
 
-/// The most generic observation model.
-pub struct Observation<S, Super, D, M = DefaultObserveModel<S, Super, D>>
+/// The most generic eskf observation.
+pub struct Observation<S, Super: KFState, D: Dim, M = DefaultModel<S, Super, D>>
 where
     S: SensitiveTo<Super>,
-    Super: KFState,
-    D: Dim,
     M: ObserveModel<S, Super, D>,
     DefaultAllocator: Allocator<D>,
 {
     /// The observed measurement.
-    measurement: OVector<S::Element, D>,
+    pub measurement: OVector<S::Element, D>,
     /// The measurement function, also known as the observation model or jacobian matrix,
     /// which map state to measurement frame
-    model: M,
+    pub model: M,
     /// The measurement noise, larger `noise` means more uncertain.
-    noise: OVector<S::Element, D>,
+    pub noise: OVector<S::Element, D>,
 
     _marker: PhantomData<Super>,
 }
 
-pub type ObservationNoModel<S, Super> =
-    Observation<S, Super, SensitivityDim<S, Super>, NoObserveModel>;
+pub type NoModelObservation<S, Super> = Observation<S, Super, SensitivityDim<S, Super>, NoModel>;
 
-impl<S, Super, D: Dim> Observation<S, Super, D>
+pub type UnbiasedObservation<S, Super, D> = Observation<UnbiasedState<S>, Super, D>;
+
+impl<S, Super: KFState, D: Dim, M> Observation<S, Super, D, M>
 where
-    S::Element: RealField,
-    S: SensitiveTo<Super, Element = Super::Element>,
-    Super: KFState,
-    DefaultAllocator: Allocator<D>
-        + Allocator<D, SensitivityDim<S, Super>>
-        + Allocator<SensitivityDim<S, Super>, D>,
+    S: SensitiveTo<Super, Element: Zero>,
+    M: ObserveModel<S, Super, D>,
+    DefaultAllocator: Allocator<D>,
 {
-    pub fn new(
-        measurement: OVector<S::Element, D>,
-        model: OMatrix<S::Element, D, SensitivityDim<S, Super>>,
-        noise: OVector<S::Element, D>,
-    ) -> Self {
+    pub fn new_with_dim(dim: D) -> Self {
         Self {
-            measurement,
-            model: DefaultObserveModel(model),
-            noise,
+            measurement: OVector::zeros_generic(dim, U1),
+            model: M::new_with_dim(dim),
+            noise: OVector::zeros_generic(dim, U1),
             _marker: PhantomData,
         }
     }
-}
-
-impl<S, Super> ObservationNoModel<S, Super>
-where
-    S::Element: RealField,
-    S: SensitiveTo<Super, Element = Super::Element>,
-    Super: KFState,
-    DefaultAllocator: Allocator<SensitivityDim<S, Super>>,
-{
-    pub fn new_no_model(
-        measurement: OVector<S::Element, SensitivityDim<S, Super>>,
-        noise: OVector<S::Element, SensitivityDim<S, Super>>,
-    ) -> Self {
-        Self {
-            measurement,
-            model: NoObserveModel,
-            noise,
-            _marker: PhantomData,
-        }
+    pub fn get_dim(&self) -> D {
+        self.measurement.shape_generic().0
     }
 }
 
 impl<S, Super, D: Dim, M> StateObserver<Observation<S, Super, D, M>> for Eskf<Super>
 where
-    Super::Element: Substitutive + ClosedMulAssign,
-    Super: KFState + AddAssign<OVector<Super::Element, Super::Dim>>,
+    Super: KFState<Element: Substitutive + ClosedMulAssign>
+        + AddAssign<OVector<Super::Element, Super::Dim>>,
     S: SensitiveTo<Super, Element = Super::Element>,
     M: ObserveModel<S, Super, D>,
     // for diagonal view
@@ -102,8 +78,8 @@ where
         + Allocator<D, D>
         + Allocator<Super::Dim>
         + Allocator<D>
-        + Allocator<D, SensitivityDim<S, Super>>
-        + Allocator<SensitivityDim<S, Super>, D>
+        + Allocator<D, S::SensiDim>
+        + Allocator<S::SensiDim, D>
         + Allocator<Super::Dim, D>
         + Allocator<D, Super::Dim>,
 {
@@ -116,11 +92,7 @@ where
             ..
         }: Observation<S, Super, D, M>,
     ) {
-        let cov = &self.cov;
-
-        let pht = model.tr_mul(S::sensitivity_to_super(cov));
-
-        let hp = model.mul(S::sensitivity_from_super(cov)).into_owned();
+        let pht = model.tr_mul(S::sensitivity_to_super(&self.cov));
 
         let mut hpht = model
             .mul(pht.rows_generic(0, S::SensiDim::name()))
@@ -133,6 +105,9 @@ where
         let kalman_gain = pht * hpht_r_inv;
 
         self.state += &kalman_gain * measurement;
+
+        let hp = model.mul(S::sensitivity_from_super(&self.cov));
+
         *self.cov = self.cov.deref() - kalman_gain * hp;
     }
 }

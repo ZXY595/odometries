@@ -5,30 +5,14 @@ use std::{
 };
 
 pub use frames::*;
-use nalgebra::{ClosedAddAssign, Scalar, Vector3};
+use nalgebra::{ClosedAddAssign, IsometryMatrix3, Scalar, Vector3};
 
 pub struct Framed<T, F> {
     inner: T,
     frame: PhantomData<F>,
 }
 
-impl<T: Clone, F> Clone for Framed<T, F> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            frame: PhantomData,
-        }
-    }
-}
-
-impl<T: Default, F> Default for Framed<T, F> {
-    fn default() -> Self {
-        Self {
-            inner: Default::default(),
-            frame: PhantomData,
-        }
-    }
-}
+pub type FramedIsometry<T, F> = Framed<IsometryMatrix3<T>, F>;
 
 impl<T, F> Framed<T, F> {
     pub const fn new(inner: T) -> Self {
@@ -87,6 +71,24 @@ impl<T, F> Deref for Framed<T, F> {
 impl<T, F> DerefMut for Framed<T, F> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
+    }
+}
+
+impl<T: Clone, F> Clone for Framed<T, F> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            frame: PhantomData,
+        }
+    }
+}
+
+impl<T: Default, F> Default for Framed<T, F> {
+    fn default() -> Self {
+        Self {
+            inner: Default::default(),
+            frame: PhantomData,
+        }
     }
 }
 

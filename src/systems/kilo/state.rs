@@ -1,6 +1,7 @@
 mod kinematic;
 
-use odometries_macros::{AnyStorageMatrix, KFState, VectorAddAssign, sub_state_of};
+use crate::AnyStorageMatrix;
+use odometries_macros::{KFState, VectorAddAssign, sub_state_of};
 
 use crate::eskf::{
     Covariance,

@@ -17,6 +17,8 @@ where
     pub cov: Covariance<S>,
 }
 
+pub type UncertainPoint<T, F> = Uncertained<FramedPoint<T, F>>;
+
 impl<S> Deref for Uncertained<S>
 where
     S: KFState,
@@ -37,14 +39,6 @@ where
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.state
     }
-}
-
-pub type UncertainPoint<T, F> = Uncertained<FramedPoint<T, F>>;
-
-#[derive(Debug, Clone)]
-pub struct ProcessCovConfig<T> {
-    pub distance: T,
-    pub direction: T,
 }
 
 impl<S> Uncertained<S>

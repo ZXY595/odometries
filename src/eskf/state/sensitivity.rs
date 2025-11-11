@@ -2,8 +2,8 @@ use std::marker::PhantomData;
 
 use crate::eskf::Covariance;
 
+use crate::AnyStorageMatrix;
 use nalgebra::{DefaultAllocator, DimName, Matrix, Storage, allocator::Allocator};
-use odometries_macros::AnyStorageMatrix;
 
 use super::{KFState, SubStateOf};
 

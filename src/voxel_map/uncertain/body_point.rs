@@ -1,25 +1,20 @@
-use nalgebra::{ComplexField, Matrix1, Matrix2, Matrix3, Matrix3x2, Scalar, Vector3};
+use nalgebra::{Matrix1, Matrix2, Matrix3, Matrix3x2, RealField, Vector3};
 
 use crate::{
     frame::BodyPoint,
-    uncertain::ProcessCovConfig,
     utils::{Substitutive, ToRadians},
     voxel_map::uncertain::UncertainBodyPoint,
 };
 
-use num_traits::{One, Zero};
-
-use std::ops::Mul;
+#[derive(Debug, Clone)]
+pub struct ProcessCovConfig<T> {
+    pub distance: T,
+    pub direction: T,
+}
 
 impl<T> UncertainBodyPoint<T>
 where
-    T: Scalar
-        + ComplexField<RealField: Mul<Matrix3<T>, Output = Matrix3<T>>>
-        + Substitutive
-        + One
-        + Zero
-        + ToRadians
-        + Default,
+    T: RealField + ToRadians + Default,
 {
     pub fn from_body_point(point: BodyPoint<T>, config: ProcessCovConfig<T>) -> Self {
         let point_coords = &point.coords;
@@ -35,7 +30,7 @@ where
         let base2 = base1.cross(&direction).normalize();
 
         let point_base_coords =
-            range * direction.cross_matrix() * Matrix3x2::from_columns(&[base1, base2]);
+            direction.cross_matrix() * range * Matrix3x2::from_columns(&[base1, base2]);
 
         let distance_cov = Matrix1::new(config.distance.powi(2));
 

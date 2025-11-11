@@ -1,4 +1,6 @@
 pub(crate) mod marker;
+use crate::frame::{FramedIsometry, frames};
+
 use super::macro_export::*;
 use std::{
     marker::PhantomData,
@@ -34,7 +36,7 @@ impl<S, M> DerefMut for MarkedState<S, M> {
 }
 
 pub type Vector3State<T, S> = MarkedState<Vector3<T>, S>;
-pub type IsometryState<T, S> = MarkedState<IsometryMatrix3<T>, S>;
+pub type IsometryState<T, S> = MarkedState<FramedIsometry<T, fn(frames::Imu) -> frames::World>, S>;
 
 impl<T, S> Unbiased for Vector3State<T, S> {}
 impl<T, S> Unbiased for IsometryState<T, S> {}
@@ -99,8 +101,9 @@ where
     S: Storage<T, U6>,
 {
     fn add_assign(&mut self, rhs: Vector<T, U6, S>) {
-        self.0 *= Rotation3::new(rhs.fixed_rows(0));
-        self.0 *= Translation3::from(rhs.fixed_rows(3).into_owned());
+        let pose: &mut IsometryMatrix3<T> = self.deref_mut();
+        *pose *= Rotation3::new(rhs.fixed_rows(0));
+        *pose *= Translation3::from(rhs.fixed_rows(3).into_owned());
     }
 }
 

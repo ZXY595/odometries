@@ -22,13 +22,14 @@ odometries-macros = { path = "./odometries-macros" }
 simba = "0.9"
 
 [dependencies]
+itertools = "0.14"
 nalgebra.workspace = true
 nohash-hasher = "0.2"
 num-traits.workspace = true
 odometries-macros.workspace = true
+rayon = { version = "1.11", optional = true }
 simba.workspace = true
 slab = "0.4"
-rayon = { version = "1.11", optional = true }
 
 [features]
 # rayon = [] # planning to add rayon support

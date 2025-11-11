@@ -1,39 +1,19 @@
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 use super::State;
-use crate::{
-    eskf::{
-        Covariance, DeltaTime, Eskf, StateObserver, StatePredictor,
-        observe::{Observation, ObservationNoModel},
-        state::{StateDim, common::*, sensitivity::UnbiasedState},
-    },
-    utils::Substitutive,
+use crate::eskf::{
+    Covariance, DeltaTime, Eskf, StatePredictor,
+    observe::{NoModelObservation, UnbiasedObservation},
+    state::{StateDim, common::*},
 };
 
-use nalgebra::{
-    DVector, Dyn, OMatrix, OVector, RealField, Rotation3, SMatrix, Scalar, Translation3,
-};
+use nalgebra::{Dyn, IsometryMatrix3, OMatrix, RealField, Rotation3, SMatrix, Translation3};
 
-pub struct PointsObserved<T: Scalar> {
-    /// The observed measurement.
-    pub z: DVector<T>,
-    /// The measurement function, also known as the observation model or jacobian matrix,
-    /// which map state to measurement frame
-    pub h: OMatrix<T, Dyn, StateDim<PoseState<T>>>,
-    /// The measurement noise,
-    /// larger r means more uncertain.
-    pub r: DVector<T>,
-}
-
-pub struct ImuObserved<T: Scalar> {
-    /// The observed measurement.
-    pub z: OVector<T, StateDim<AccState<T>>>,
-    /// The measurement noise,
-    pub r: OVector<T, StateDim<AccState<T>>>,
-}
+pub type PointsObserved<T> = UnbiasedObservation<PoseState<T>, State<T>, Dyn>;
+pub type ImuObserved<T> = NoModelObservation<AccWithBiasState<T>, State<T>>;
 
 #[expect(unused)]
-pub struct KinImuObserved<T: Scalar> {
+pub struct KinImuObserved<T: RealField> {
     pub zr: ImuObserved<T>,
     pub h: OMatrix<T, StateDim<PoseState<T>>, StateDim<State<T>>>,
 }
@@ -44,9 +24,11 @@ where
 {
     fn predict(&mut self, dt: T) {
         let acc = &self.acc_with_bias.acc;
-        *self.pose *= Rotation3::new(acc.angular.deref() * dt.clone());
-        *self.pose *= Translation3::from(self.velocity.deref() * dt.clone());
-        *self.velocity += (self.pose.deref() * acc.linear.deref() + self.gravity.deref()) * dt;
+        let pose: &mut IsometryMatrix3<T> = self.pose.deref_mut();
+
+        *pose *= Rotation3::new(acc.angular.deref() * dt.clone());
+        *pose *= Translation3::from(self.velocity.deref() * dt.clone());
+        *self.velocity += (pose.deref() * acc.linear.deref() + self.gravity.deref()) * dt;
     }
 }
 
@@ -94,23 +76,3 @@ where
         self.predict_cov(observe);
     }
 }
-
-impl<T> StateObserver<PointsObserved<T>> for Eskf<State<T>>
-where
-    T: RealField + Substitutive,
-{
-    fn observe(&mut self, PointsObserved { z, h, r }: PointsObserved<T>) {
-        self.observe(Observation::<UnbiasedState<PoseState<T>>, State<T>, Dyn>::new(z, h, r))
-    }
-}
-
-impl<T> StateObserver<ImuObserved<T>> for Eskf<State<T>>
-where
-    T: RealField + Substitutive,
-{
-    fn observe(&mut self, ImuObserved { z, r }: ImuObserved<T>) {
-        self.observe(ObservationNoModel::<AccWithBiasState<T>, State<T>>::new_no_model(z, r));
-    }
-}
-
-// TODO: add kinematic imu observation.

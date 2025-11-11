@@ -6,6 +6,7 @@ use std::ops::Deref;
 
 use nalgebra::{Point3, RealField, Scalar};
 use nohash_hasher::IntMap;
+pub use residual::Residual;
 
 use crate::{
     frame::{IsometryFramed, frames},
@@ -89,7 +90,7 @@ where
     where
         I: IntoIterator<Item = UncertainWorldPoint<T>>,
     {
-        // TODO: could be optimized by using `rayon`
+        // TODO: could this be optimized by using `rayon`?
         iter.into_iter().for_each(|point| self.insert(point));
     }
 }
