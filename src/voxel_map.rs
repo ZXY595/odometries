@@ -4,7 +4,7 @@ pub mod uncertain;
 
 use std::ops::Deref;
 
-use nalgebra::{Point3, RealField, Scalar};
+use nalgebra::{ComplexField, Point3, RealField};
 use nohash_hasher::IntMap;
 pub use residual::Residual;
 
@@ -21,8 +21,7 @@ type VoxelIndex<T> = <Point3<T> as ToVoxelIndex<T>>::Index;
 
 pub struct VoxelMap<T>
 where
-    T: Scalar,
-    Point3<T>: ToVoxelIndex<T>,
+    T: ComplexField,
 {
     roots: IntMap<VoxelIndex<T>, OctTreeRoot<T>>,
     config: Config<T>,
@@ -55,8 +54,7 @@ pub struct Config<T> {
 
 impl<T> VoxelMap<T>
 where
-    T: Scalar + Default,
-    Point3<T>: ToVoxelIndex<T>,
+    T: ComplexField + Default,
 {
     pub fn new(config: Config<T>) -> Self {
         Self {
@@ -69,7 +67,6 @@ where
 impl<T> VoxelMap<T>
 where
     T: RealField + Default,
-    Point3<T>: ToVoxelIndex<T>,
 {
     pub fn insert(&mut self, point: UncertainWorldPoint<T>) {
         let voxel_size = &self.config.voxel_size;
@@ -84,7 +81,6 @@ where
 impl<T> Extend<UncertainWorldPoint<T>> for VoxelMap<T>
 where
     T: RealField + Default,
-    Point3<T>: ToVoxelIndex<T>,
 {
     fn extend<I>(&mut self, iter: I)
     where

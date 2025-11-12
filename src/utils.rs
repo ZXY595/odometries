@@ -1,11 +1,10 @@
 mod macros;
 use nalgebra::{
-    Cholesky, ClosedAddAssign, ClosedDivAssign, ClosedMulAssign, ClosedSubAssign, ComplexField,
-    DefaultAllocator, Dim, DimAdd, DimMin, DimMinimum, DimSum, Matrix, Matrix3, OMatrix, Point3,
-    RawStorageMut, Scalar, U1, Vector3, VectorViewMut, ViewStorageMut, allocator::Allocator,
+    Cholesky, ComplexField, DefaultAllocator, Dim, DimAdd, DimMin, DimMinimum, DimSum, Matrix,
+    Matrix3, OMatrix, Point3, RawStorageMut, Scalar, U1, Vector3, VectorViewMut, ViewStorageMut,
+    allocator::Allocator,
 };
-use num_traits::{One, Zero, float::FloatCore};
-use simba::scalar::SupersetOf;
+use num_traits::float::FloatCore;
 use std::{hash::Hash, iter::Sum};
 
 pub trait ViewDiagonalMut {
@@ -114,14 +113,7 @@ pub struct VectorSquareSum<T: Scalar> {
 
 impl<T> VectorSquareSum<T>
 where
-    T: Scalar
-        + Zero
-        + One
-        + ClosedAddAssign
-        + ClosedMulAssign
-        + ClosedDivAssign
-        + ClosedSubAssign
-        + SupersetOf<f64>,
+    T: ComplexField,
 {
     pub fn mean(&self) -> (Vector3<T>, Matrix3<T>) {
         let count: T = nalgebra::convert(self.count as f64);
@@ -129,6 +121,7 @@ where
         let covariance = &self.square_sum / count - &mean * mean.transpose();
         (mean, covariance)
     }
+    #[inline(always)]
     pub fn count(&self) -> usize {
         self.count
     }
@@ -136,7 +129,7 @@ where
 
 impl<'a, T> Sum<&'a Vector3<T>> for VectorSquareSum<T>
 where
-    T: Scalar + Default + Zero + One + ClosedAddAssign + ClosedMulAssign,
+    T: ComplexField + Default,
 {
     fn sum<I>(iter: I) -> Self
     where
@@ -157,26 +150,18 @@ pub trait ToVoxelIndex<S> {
     fn to_voxel_index(&self, voxel_size: S) -> Self::Index;
 }
 
-impl ToVoxelIndex<f64> for Point3<f64> {
+impl<T: ComplexField> ToVoxelIndex<T> for Point3<T> {
     type Index = i64;
-    fn assume_voxel_index(self) -> Self::Index {
-        let index = self.map(|x| x.floor() as Self::Index);
-        ((index.x * 73856093) ^ (index.y * 471943) ^ (index.z * 83492791)) % 10000000
-    }
-    fn to_voxel_index(&self, voxel_size: f64) -> Self::Index {
-        let index = self / voxel_size;
-        index.assume_voxel_index()
-    }
-}
 
-impl ToVoxelIndex<f32> for Point3<f32> {
-    type Index = i32;
+    #[inline]
     fn assume_voxel_index(self) -> Self::Index {
-        let index = self.map(|x| x.floor() as Self::Index);
-        // TODO: check if this is correct, might be overflowing.
+        let index = self
+            .map(|x| x.floor().to_subset_unchecked())
+            .map(|x: f64| x as i64);
         ((index.x * 73856093) ^ (index.y * 471943) ^ (index.z * 83492791)) % 10000000
     }
-    fn to_voxel_index(&self, voxel_size: f32) -> Self::Index {
+    #[inline]
+    fn to_voxel_index(&self, voxel_size: T) -> Self::Index {
         let index = self / voxel_size;
         index.assume_voxel_index()
     }

@@ -22,7 +22,7 @@ use crate::{
     },
 };
 
-use nalgebra::{Point3, RealField, Scalar, stack};
+use nalgebra::{ComplexField, Point3, RealField, Scalar, stack};
 
 pub use body_point::ProcessCovConfig as BodyPointProcessCovConfig;
 pub use state::ProcessCovConfig as StateProcessCovConfig;
@@ -44,8 +44,7 @@ pub use state::ProcessCovConfig as StateProcessCovConfig;
 /// ```
 pub struct ILO<T>
 where
-    T: Scalar,
-    Point3<T>: ToVoxelIndex<T>,
+    T: ComplexField,
 {
     eskf: Eskf<State<T>>,
     map: VoxelMap<T>,
@@ -71,7 +70,6 @@ pub type ImuMeasurement<T> = AccState<T>;
 impl<T> ILO<T>
 where
     T: RealField + ToRadians + Default,
-    Point3<T>: ToVoxelIndex<T>,
 {
     pub fn new(config: Config<T>) -> Self {
         let process_cov_config = config.process_cov;
@@ -102,70 +100,23 @@ where
             self.last_observe_time = timestamp;
         }
     }
-    pub fn extend_points(
+    pub fn extend_points_once(
         &mut self,
-        points_with_timestamp: (impl IntoIterator<Item = BodyPoint<T>, IntoIter: Clone>, T),
+        points: impl IntoIterator<Item = BodyPoint<T>, IntoIter: Clone>,
+        timestamp: T,
     ) {
-        let (points, timestamp) = points_with_timestamp;
         let points = points.into_iter();
 
-        self.eskf_update(timestamp, |ilo| {
-            let body_to_imu = &ilo.extrinsics;
-            let imu_to_world = ilo.eskf.pose.deref();
-            let body_to_world = body_to_imu * imu_to_world;
-
-            // TODO: could this be optimized by using `rayon`?
-            let observation = points
-                .clone()
-                .filter_map(|point| {
-                    let config = ilo.body_point_process_cov.clone();
-
-                    let body_point = UncertainBodyPoint::<T>::from_body_point(point, config);
-
-                    let imu_point = body_point.deref() * body_to_imu;
-                    let cross_matrix_imu = imu_point.coords.cross_matrix();
-
-                    let world_point = UncertainWorldPoint::from_uncertain_body_point(
-                        body_point,
-                        imu_to_world,
-                        &body_to_world,
-                        Framed::new(&cross_matrix_imu),
-                        &ilo.eskf.cov,
-                    );
-                    let residual = ilo.map.get_residual(world_point).or_else(|| {
-                        // TODO: search for one nearest voxel in the map
-                        todo!()
-                    })?;
-                    let plane_normal = residual.plane_normal;
-                    let crossmatrix_rotation_t_normal =
-                        cross_matrix_imu * ilo.eskf.pose.rotation.transpose() * plane_normal;
-
-                    #[expect(clippy::toplevel_ref_arg)]
-                    let model = stack![crossmatrix_rotation_t_normal; plane_normal];
-                    // TODO: do we really need to [`neg`](std::ops::Neg) this measurement?
-                    let measurement = -residual.distance_to_plane;
-                    // TODO: add a config to adjust the noise
-                    let noise = residual.sigma;
-
-                    Some((measurement, model, noise))
-                })
-                .collect::<PointsObserved<T>>();
-
-            if observation.get_dim().0 == 0 {
-                return None;
-            }
-            Some(observation)
-        });
+        self.eskf_update(timestamp, |ilo| ilo.observe_points(points.clone()));
 
         let body_to_imu = &self.extrinsics;
         let imu_to_world = self.eskf.pose.deref();
         let body_to_world = body_to_imu * imu_to_world;
 
         let new_world_points = points.map(|point| {
-            let config = self.body_point_process_cov.clone();
             UncertainWorldPoint::from_body_point(
                 point,
-                config,
+                self.body_point_process_cov.clone(),
                 body_to_imu,
                 imu_to_world,
                 &body_to_world,
@@ -173,6 +124,56 @@ where
             )
         });
         self.map.extend(new_world_points);
+    }
+    fn observe_points(
+        &self,
+        points: impl Iterator<Item = BodyPoint<T>>,
+    ) -> Option<PointsObserved<T>> {
+        let body_to_imu = &self.extrinsics;
+        let imu_to_world = self.eskf.pose.deref();
+        let body_to_world = body_to_imu * imu_to_world;
+
+        // TODO: could this be optimized by using `rayon`?
+        let observation = points
+            .filter_map(|point| {
+                let body_point = UncertainBodyPoint::<T>::from_body_point(
+                    point,
+                    self.body_point_process_cov.clone(),
+                );
+
+                let imu_point = body_point.deref() * body_to_imu;
+                let cross_matrix_imu = imu_point.coords.cross_matrix();
+
+                let world_point = UncertainWorldPoint::from_uncertain_body_point(
+                    body_point,
+                    imu_to_world,
+                    &body_to_world,
+                    Framed::new(&cross_matrix_imu),
+                    &self.eskf.cov,
+                );
+                let residual = self.map.get_residual(world_point).or_else(|| {
+                    // TODO: search for one nearest voxel in the map
+                    todo!()
+                })?;
+                let plane_normal = residual.plane_normal;
+                let crossmatrix_rotation_t_normal =
+                    cross_matrix_imu * self.eskf.pose.rotation.transpose() * plane_normal;
+
+                #[expect(clippy::toplevel_ref_arg)]
+                let model = stack![crossmatrix_rotation_t_normal; plane_normal];
+                // TODO: do we really need to [`neg`](std::ops::Neg) this measurement?
+                let measurement = -residual.distance_to_plane;
+                // TODO: add a config to adjust the noise
+                let noise = residual.sigma;
+
+                Some((measurement, model, noise))
+            })
+            .collect::<PointsObserved<T>>();
+
+        if observation.get_dim().0 == 0 {
+            return None;
+        }
+        Some(observation)
     }
 }
 
@@ -233,8 +234,8 @@ where
         I: IntoIterator<Item = (P, T)>,
     {
         // TODO: could this be optimized by using `rayon`?
-        iter.into_iter().for_each(|points_with_timestamp| {
-            self.extend_points(points_with_timestamp);
+        iter.into_iter().for_each(|(points, timestamp)| {
+            self.extend_points_once(points, timestamp);
         });
     }
 }
