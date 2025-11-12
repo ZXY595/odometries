@@ -5,7 +5,7 @@
 mod context;
 pub mod eskf;
 mod frame;
-pub mod systems;
+pub mod algorithm;
 pub mod uncertain;
 mod utils;
 pub mod voxel_map;

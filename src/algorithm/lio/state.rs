@@ -1,5 +1,3 @@
-mod kinematic;
-
 use crate::AnyStorageMatrix;
 use odometries_macros::{KFState, VectorAddAssign, sub_state_of};
 

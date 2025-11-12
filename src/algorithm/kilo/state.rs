@@ -1,17 +1,18 @@
-use crate::eskf::state::{common::Vector3State, macro_export::*};
-use nalgebra::{DimNameSum, Scalar};
-use odometries_macros::KFState;
+use crate::{
+    algorithm::lio,
+    eskf::state::{common::Vector3State, macro_export::*},
+};
+use nalgebra::{DimNameSum, RealField, Scalar};
+use odometries_macros::{KFState, VectorAddAssign};
 
-use super::State;
-
-#[derive(KFState)]
+#[derive(KFState, VectorAddAssign)]
 #[element(T)]
-#[expect(unused)]
-pub struct KState<T>
+#[vector_add_assign(predicates(RealField))]
+pub struct State<T>
 where
     T: Scalar,
 {
-    state: State<T>,
+    state: lio::state::State<T>,
     kinematic_velocity_bias: KinVelocityBiasState<T>,
     contact_foot_pos: ContactFootPosState<T>,
 }

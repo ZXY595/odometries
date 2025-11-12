@@ -4,19 +4,13 @@ use super::State;
 use crate::eskf::{
     Covariance, DeltaTime, Eskf, StatePredictor,
     observe::{NoModelObservation, UnbiasedObservation},
-    state::{StateDim, common::*},
+    state::common::*,
 };
 
-use nalgebra::{Dyn, IsometryMatrix3, OMatrix, RealField, Rotation3, SMatrix, Translation3};
+use nalgebra::{Dyn, IsometryMatrix3, RealField, Rotation3, SMatrix, Translation3};
 
 pub type PointsObserved<T> = UnbiasedObservation<PoseState<T>, State<T>, Dyn>;
 pub type ImuObserved<T> = NoModelObservation<AccWithBiasState<T>, State<T>>;
-
-#[expect(unused)]
-pub struct KinImuObserved<T: RealField> {
-    pub zr: ImuObserved<T>,
-    pub h: OMatrix<T, StateDim<PoseState<T>>, StateDim<State<T>>>,
-}
 
 impl<T> StatePredictor<T> for State<T>
 where

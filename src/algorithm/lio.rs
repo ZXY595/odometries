@@ -1,20 +1,17 @@
-//! An inertial–LiDAR tightly‑coupled error‑state Kalman filter odometry system.
-//! Most of the ideas come from Leg-Kilo
-
-mod estimate;
-mod state;
+pub mod estimate;
+pub mod state;
 
 use std::ops::Deref;
 
 use state::State;
 
 use crate::{
+    algorithm::lio::estimate::{ImuObserved, PointsObserved},
     eskf::{
         DeltaTime, Eskf, StateObserver, StatePredictor,
         state::common::{AccState, AccWithBiasState, AngularAccBiasState, GravityState},
     },
     frame::{BodyPoint, Framed, FramedIsometry, frames},
-    systems::kilo::estimate::{ImuObserved, PointsObserved},
     utils::ToRadians,
     voxel_map::{
         self, VoxelMap,
@@ -42,7 +39,7 @@ pub use state::ProcessCovConfig as StateProcessCovConfig;
 ///                                    │
 ///                      LiDAR point ├─╯
 /// ```
-pub struct ILO<T>
+pub struct LIO<T>
 where
     T: ComplexField,
 {
@@ -76,7 +73,7 @@ pub struct ProcessCovConfig<T: Scalar> {
 
 pub type ImuMeasurement<T> = AccState<T>;
 
-impl<T> ILO<T>
+impl<T> LIO<T>
 where
     T: RealField + ToRadians + Default,
 {
@@ -231,7 +228,7 @@ where
     }
 }
 
-impl<T> Extend<(ImuMeasurement<T>, T)> for ILO<T>
+impl<T> Extend<(ImuMeasurement<T>, T)> for LIO<T>
 where
     T: RealField + ToRadians + Default,
 {
@@ -270,7 +267,7 @@ where
     }
 }
 
-impl<P, T> Extend<(P, T)> for ILO<T>
+impl<P, T> Extend<(P, T)> for LIO<T>
 where
     T: RealField + ToRadians + Default,
     P: IntoIterator<Item = BodyPoint<T>, IntoIter: Clone>,
