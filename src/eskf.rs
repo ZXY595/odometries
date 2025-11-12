@@ -8,6 +8,8 @@ mod covariance;
 pub mod observe;
 pub mod state;
 pub use covariance::Covariance;
+use num_traits::{One, Zero};
+use simba::scalar::SupersetOf;
 use state::KFState;
 
 use crate::uncertain::Uncertained;
@@ -60,8 +62,8 @@ where
 
 impl<S> Eskf<S>
 where
-    S: KFState,
-    DefaultAllocator: Allocator<S::Dim, S::Dim, Buffer<S::Element>: Default>,
+    S: KFState<Element: One + Zero + SupersetOf<f64>>,
+    DefaultAllocator: Allocator<S::Dim, S::Dim>,
 {
     pub fn new(process_cov: Covariance<S>) -> Self
     where

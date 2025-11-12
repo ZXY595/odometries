@@ -1,6 +1,8 @@
 use std::ops::{Deref, DerefMut};
 
 use nalgebra::{DefaultAllocator, OMatrix, allocator::Allocator};
+use num_traits::{One, Zero};
+use simba::scalar::SupersetOf;
 
 use crate::{
     eskf::{Covariance, state::KFState},
@@ -43,11 +45,11 @@ where
 
 impl<S> Uncertained<S>
 where
-    S: KFState,
-    DefaultAllocator: Allocator<S::Dim, S::Dim, Buffer<S::Element>: Default>,
+    S: KFState<Element: One + Zero + SupersetOf<f64>>,
+    DefaultAllocator: Allocator<S::Dim, S::Dim>,
 {
     pub fn new(state: S) -> Self {
-        let cov = OMatrix::default();
+        let cov = OMatrix::from_diagonal_element(nalgebra::convert(1e-6));
         Self::new_with_cov(state, cov)
     }
     pub const fn new_with_cov(state: S, cov: OMatrix<S::Element, S::Dim, S::Dim>) -> Self {

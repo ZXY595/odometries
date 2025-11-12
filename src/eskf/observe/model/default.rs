@@ -12,8 +12,8 @@ use crate::{
 };
 use itertools::MultiUnzip;
 use nalgebra::{
-    ClosedAddAssign, ClosedMulAssign, DefaultAllocator, Dim, DimName, Dyn, OMatrix, OVector,
-    RealField, Scalar, allocator::Allocator,
+    ClosedAddAssign, ClosedMulAssign, DefaultAllocator, Dim, DimName, Dyn, Matrix, OMatrix,
+    OVector, RealField, Scalar, allocator::Allocator,
 };
 
 use super::ObserveModel;
@@ -49,7 +49,7 @@ where
     where
         DefaultAllocator: Allocator<D, D2>,
     {
-        self.transpose() * rhs
+        Matrix::tr_mul(self, &rhs)
     }
 
     #[inline(always)]

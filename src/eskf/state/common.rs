@@ -15,6 +15,15 @@ use odometries_macros::{KFState, Unbiased, VectorAddAssign};
 
 pub struct MarkedState<S, M>(pub S, PhantomData<M>);
 
+impl<S, M> MarkedState<S, M> {
+    pub fn new(state: S) -> Self {
+        MarkedState(state, PhantomData)
+    }
+    pub fn map_state_marker<N>(self) -> MarkedState<S, N> {
+        MarkedState(self.0, PhantomData)
+    }
+}
+
 impl<S: Default, M> Default for MarkedState<S, M> {
     fn default() -> Self {
         Self(S::default(), PhantomData)
@@ -36,19 +45,19 @@ impl<S, M> DerefMut for MarkedState<S, M> {
 }
 
 pub type Vector3State<T, S> = MarkedState<Vector3<T>, S>;
-pub type IsometryState<T, S> = MarkedState<FramedIsometry<T, fn(frames::Imu) -> frames::World>, S>;
+pub type IsometryState<T, F, S> = MarkedState<FramedIsometry<T, F>, S>;
 
 impl<T, S> Unbiased for Vector3State<T, S> {}
-impl<T, S> Unbiased for IsometryState<T, S> {}
+impl<T, F, S> Unbiased for IsometryState<T, F, S> {}
 
-pub type PoseState<T> = IsometryState<T, marker::Pose>;
+pub type PoseState<T> = IsometryState<T, fn(frames::Imu) -> frames::World, marker::Pose>;
 pub type RotationState<T> = Vector3State<T, marker::Rotation>;
 pub type PositionState<T> = Vector3State<T, marker::Position>;
 pub type VelocityState<T> = Vector3State<T, marker::Velocity>;
 pub type GravityState<T> = Vector3State<T, marker::Gravity>;
-pub type LinearAccState<T> = Vector3State<T, marker::LinearAccel>;
-pub type LinearAccBiasState<T> = Vector3State<T, marker::AccelBias>;
-pub type AngularAccState<T> = Vector3State<T, marker::AngularAccel>;
+pub type LinearAccState<T> = Vector3State<T, marker::LinearAcc>;
+pub type LinearAccBiasState<T> = Vector3State<T, marker::AccBias>;
+pub type AngularAccState<T> = Vector3State<T, marker::AngularAcc>;
 pub type AngularAccBiasState<T> = Vector3State<T, marker::GyroBias>;
 
 #[derive(KFState, VectorAddAssign, Default)]
@@ -90,12 +99,12 @@ where
     }
 }
 
-impl<T: Scalar, M> super::KFState for IsometryState<T, M> {
+impl<T: Scalar, F, M> super::KFState for IsometryState<T, F, M> {
     type Element = T;
     type Dim = U6;
 }
 
-impl<T, S, M> AddAssign<Vector<T, U6, S>> for IsometryState<T, M>
+impl<T, F, S, M> AddAssign<Vector<T, U6, S>> for IsometryState<T, F, M>
 where
     T: RealField,
     S: Storage<T, U6>,

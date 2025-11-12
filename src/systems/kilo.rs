@@ -11,18 +11,18 @@ use state::State;
 use crate::{
     eskf::{
         DeltaTime, Eskf, StateObserver, StatePredictor,
-        state::common::{AccState, AccWithBiasState},
+        state::common::{AccState, AccWithBiasState, AngularAccBiasState, GravityState},
     },
     frame::{BodyPoint, Framed, FramedIsometry, frames},
     systems::kilo::estimate::{ImuObserved, PointsObserved},
-    utils::{ToRadians, ToVoxelIndex},
+    utils::ToRadians,
     voxel_map::{
         self, VoxelMap,
         uncertain::{UncertainBodyPoint, UncertainWorldPoint, body_point},
     },
 };
 
-use nalgebra::{ComplexField, Point3, RealField, Scalar, stack};
+use nalgebra::{ComplexField, RealField, Scalar, stack};
 
 pub use body_point::ProcessCovConfig as BodyPointProcessCovConfig;
 pub use state::ProcessCovConfig as StateProcessCovConfig;
@@ -48,8 +48,14 @@ where
 {
     eskf: Eskf<State<T>>,
     map: VoxelMap<T>,
+    // TODO: refactor these config into a config struct
     body_point_process_cov: BodyPointProcessCovConfig<T>,
     extrinsics: FramedIsometry<T, fn(frames::Body) -> frames::Imu>,
+    linear_acc_norm: T,
+    // TODO: refactor these fields into a noise config struct
+    imu_acc_measure_noise: AccState<T>,
+    lidar_point_measure_noise: T,
+    // TODO: refactor these fields into a timer struct
     last_predict_time: T,
     last_observe_time: T,
 }
@@ -58,6 +64,9 @@ pub struct Config<T: Scalar> {
     process_cov: ProcessCovConfig<T>,
     voxel_map: voxel_map::Config<T>,
     extrinsics: FramedIsometry<T, fn(frames::Body) -> frames::Imu>,
+    // TODO: refactor these fields into a noise config struct
+    imu_acc_measure_noise: AccState<T>,
+    lidar_point_measure_noise: T,
 }
 
 pub struct ProcessCovConfig<T: Scalar> {
@@ -71,19 +80,26 @@ impl<T> ILO<T>
 where
     T: RealField + ToRadians + Default,
 {
-    pub fn new(config: Config<T>) -> Self {
+    pub fn new(imu_init: ImuInit<T>, config: Config<T>) -> Self {
         let process_cov_config = config.process_cov;
-        let eskf = Eskf::new(process_cov_config.state.into());
+        let mut eskf = Eskf::new(process_cov_config.state.into());
+
+        eskf.gravity = imu_init.gravity;
+        eskf.acc_with_bias.bias.angular = imu_init.angular_acc_bias;
+
         Self {
             eskf,
             map: VoxelMap::new(config.voxel_map),
             body_point_process_cov: process_cov_config.body_point,
             extrinsics: config.extrinsics,
+            linear_acc_norm: imu_init.linear_acc_norm,
+            imu_acc_measure_noise: config.imu_acc_measure_noise,
+            lidar_point_measure_noise: config.lidar_point_measure_noise,
             last_predict_time: T::default(),
             last_observe_time: T::default(),
         }
     }
-    fn eskf_update<OB>(&mut self, timestamp: T, f: impl FnOnce(&mut Self) -> Option<OB>)
+    fn eskf_update<OB>(&mut self, timestamp: T, f: impl FnOnce(&Self) -> Option<OB>)
     where
         Eskf<State<T>>: StateObserver<OB>,
     {
@@ -161,10 +177,11 @@ where
 
                 #[expect(clippy::toplevel_ref_arg)]
                 let model = stack![crossmatrix_rotation_t_normal; plane_normal];
+
                 // TODO: do we really need to [`neg`](std::ops::Neg) this measurement?
                 let measurement = -residual.distance_to_plane;
-                // TODO: add a config to adjust the noise
-                let noise = residual.sigma;
+
+                let noise = self.lidar_point_measure_noise.clone() * residual.sigma;
 
                 Some((measurement, model, noise))
             })
@@ -177,24 +194,46 @@ where
     }
 }
 
-impl<T> FromIterator<ImuMeasurement<T>> for ILO<T>
+pub struct ImuInit<T> {
+    linear_acc_norm: T,
+    angular_acc_bias: AngularAccBiasState<T>,
+    gravity: GravityState<T>,
+}
+
+impl<T> FromIterator<ImuMeasurement<T>> for Option<ImuInit<T>>
 where
     T: RealField + Default,
-    Point3<T>: ToVoxelIndex<T>,
 {
     fn from_iter<I>(iter: I) -> Self
     where
         I: IntoIterator<Item = ImuMeasurement<T>>,
     {
-        let iter = iter.into_iter();
-        todo!()
+        let mut iter = iter.into_iter().enumerate();
+
+        let (_, first) = iter.next()?;
+        let acc_mean = iter.fold(first, |mut mean_acc, (i, current_acc)| {
+            let n: T = nalgebra::convert(i as f64);
+            mean_acc.linear += (current_acc.linear.deref() - mean_acc.linear.deref()) / n.clone();
+            mean_acc.angular += (current_acc.angular.deref() - mean_acc.angular.deref()) / n;
+            mean_acc
+        });
+
+        let linear_acc_norm = acc_mean.linear.norm();
+        let gravity: T = nalgebra::convert(9.81);
+
+        Some(ImuInit {
+            gravity: GravityState::new(
+                -acc_mean.linear.deref() / linear_acc_norm.clone() * gravity,
+            ),
+            linear_acc_norm,
+            angular_acc_bias: acc_mean.angular.map_state_marker(),
+        })
     }
 }
 
 impl<T> Extend<(ImuMeasurement<T>, T)> for ILO<T>
 where
     T: RealField + ToRadians + Default,
-    Point3<T>: ToVoxelIndex<T>,
 {
     fn extend<I>(&mut self, iter: I)
     where
@@ -205,18 +244,26 @@ where
             let angular_acc = acc.angular.deref();
             self.eskf_update(timestamp, |ilo| {
                 let gravity: T = nalgebra::convert(9.81);
+
                 let AccWithBiasState {
                     acc: state_acc,
                     bias: state_acc_bias,
                 } = &ilo.eskf.state.acc_with_bias;
-                let linear_measured_acc=
-                    linear_acc * gravity /* TODO: div acc_norm here */ - state_acc.linear.deref() - state_acc_bias.linear.deref();
-                let angular_measured_acc =  angular_acc - state_acc.angular.deref() - state_acc_bias.angular.deref();
+
+                let linear_measured_acc = linear_acc * (gravity / ilo.linear_acc_norm.clone())
+                    - state_acc.linear.deref()
+                    - state_acc_bias.linear.deref();
+
+                let angular_measured_acc =
+                    angular_acc - state_acc.angular.deref() - state_acc_bias.angular.deref();
 
                 #[expect(clippy::toplevel_ref_arg)]
                 let measurement = stack![linear_measured_acc; angular_measured_acc];
-                // TODO: add a config to adjust the noise.
-                let noise = nalgebra::Vector6::zeros();
+
+                let noise = &ilo.imu_acc_measure_noise;
+                #[expect(clippy::toplevel_ref_arg)]
+                let noise = stack![noise.linear; noise.angular];
+
                 Some(ImuObserved::new_no_model(measurement, noise))
             });
         })
@@ -226,7 +273,6 @@ where
 impl<P, T> Extend<(P, T)> for ILO<T>
 where
     T: RealField + ToRadians + Default,
-    Point3<T>: ToVoxelIndex<T>,
     P: IntoIterator<Item = BodyPoint<T>, IntoIter: Clone>,
 {
     fn extend<I>(&mut self, iter: I)
