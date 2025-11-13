@@ -111,7 +111,7 @@ where
                 // TODO: do we really need to [`neg`](std::ops::Neg) this measurement?
                 let measurement = -residual.distance_to_plane;
 
-                let noise = self.lidar_point_measure_noise.clone() * residual.sigma;
+                let noise = self.measure_noise.lidar_point.clone() * residual.sigma;
 
                 Some((measurement, model, noise))
             })
@@ -124,7 +124,7 @@ where
     }
 }
 
-impl<'a, P, T> Extend<PointChunkStamped<'a, T, P>> for LIO<T>
+impl<'a, T, P> Extend<PointChunkStamped<'a, T, P>> for LIO<T>
 where
     T: RealField + ToRadians + Default,
     P: LidarPoint<T>,

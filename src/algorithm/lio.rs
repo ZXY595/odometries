@@ -2,12 +2,14 @@ pub mod estimate;
 pub mod measurement;
 pub mod state;
 
+use std::ops::Deref;
+
 use state::State;
 
 use crate::{
     eskf::{
         Eskf, KFTime, StateObserver, StatePredictor,
-        state::common::{AccState, AngularAccBiasState, GravityState},
+        state::common::{AccState, AngularAccBiasState, GravityState, LinearAccState},
     },
     frame::{FramedIsometry, frames},
     utils::ToRadians,
@@ -41,22 +43,24 @@ where
     eskf: Eskf<State<T>>,
     last_update_time: KFTime<T>,
     map: VoxelMap<T>,
-    // TODO: refactor these config into a config struct
+    // configs
     body_point_process_cov: BodyPointProcessCovConfig<T>,
     extrinsics: FramedIsometry<T, fn(frames::Body) -> frames::Imu>,
-    linear_acc_norm: T,
-    // TODO: refactor these fields into a noise config struct
-    imu_acc_measure_noise: AccState<T>,
-    lidar_point_measure_noise: T,
+    measure_noise: MeasureNoiseConfig<T>,
+    gravity_norm_factor: T,
 }
 
 pub struct Config<T: Scalar> {
     process_cov: ProcessCovConfig<T>,
     voxel_map: voxel_map::Config<T>,
     extrinsics: FramedIsometry<T, fn(frames::Body) -> frames::Imu>,
-    // TODO: refactor these fields into a noise config struct
-    imu_acc_measure_noise: AccState<T>,
-    lidar_point_measure_noise: T,
+    meaure_noise: MeasureNoiseConfig<T>,
+    gravity: T,
+}
+
+pub struct MeasureNoiseConfig<T: Scalar> {
+    imu_acc: AccState<T>,
+    lidar_point: T,
 }
 
 pub struct ProcessCovConfig<T: Scalar> {
@@ -64,10 +68,23 @@ pub struct ProcessCovConfig<T: Scalar> {
     body_point: BodyPointProcessCovConfig<T>,
 }
 
+/// The imu initialization returned by
+/// [`impl Iterator<Item = ImuMeasured<T>>::collect`](std::iter::Iterator::collect)
+///
+/// Can be used to create odometries that need imu observation.
 pub struct ImuInit<T> {
     linear_acc_norm: T,
+    linear_acc_mean: LinearAccState<T>,
     angular_acc_bias: AngularAccBiasState<T>,
-    gravity: GravityState<T>,
+}
+
+impl<T> ImuInit<T>
+where
+    T: RealField + ToRadians + Default,
+{
+    pub fn new_lio(self, config: Config<T>) -> LIO<T> {
+        LIO::new(self, config)
+    }
 }
 
 impl<T> LIO<T>
@@ -75,22 +92,27 @@ where
     T: RealField + ToRadians + Default,
 {
     pub fn new(imu_init: ImuInit<T>, config: Config<T>) -> Self {
-        let process_cov_config = config.process_cov;
-        let mut eskf = Eskf::new(process_cov_config.state.into());
+        let mut eskf = Eskf::new(config.process_cov.state.into());
 
-        eskf.gravity = imu_init.gravity;
+        let gravity_norm_factor = config.gravity / imu_init.linear_acc_norm.clone();
+
+        eskf.gravity =
+            GravityState::new(-imu_init.linear_acc_mean.deref() * gravity_norm_factor.clone());
         eskf.acc_with_bias.bias.angular = imu_init.angular_acc_bias;
 
         Self {
             eskf,
             last_update_time: Default::default(),
             map: VoxelMap::new(config.voxel_map),
-            body_point_process_cov: process_cov_config.body_point,
+            body_point_process_cov: config.process_cov.body_point,
             extrinsics: config.extrinsics,
-            linear_acc_norm: imu_init.linear_acc_norm,
-            imu_acc_measure_noise: config.imu_acc_measure_noise,
-            lidar_point_measure_noise: config.lidar_point_measure_noise,
+            gravity_norm_factor,
+            measure_noise: config.meaure_noise,
         }
+    }
+
+    pub fn get_pose(&self) -> &FramedIsometry<T, fn(frames::Imu) -> frames::World> {
+        &self.eskf.pose.0
     }
 
     fn eskf_update<OB>(&mut self, timestamp: T, f: impl FnOnce(&Self) -> Option<OB>)

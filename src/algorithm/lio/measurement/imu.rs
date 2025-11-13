@@ -13,8 +13,6 @@ use super::LIO;
 pub type ImuMeasured<T> = AccState<T>;
 pub type ImuMeasuredStamped<'a, T> = (T, &'a ImuMeasured<T>);
 
-pub const GRAVITY: f64 = 9.81;
-
 impl<T> LIO<T>
 where
     T: RealField + ToRadians + Default,
@@ -22,14 +20,13 @@ where
     fn observe_imu(&self, imu_acc: &ImuMeasured<T>) -> ImuObserved<T> {
         let linear_acc = imu_acc.linear.deref();
         let angular_acc = imu_acc.angular.deref();
-        let gravity: T = nalgebra::convert(GRAVITY);
 
         let AccWithBiasState {
             acc: state_acc,
             bias: state_acc_bias,
         } = &self.eskf.state.acc_with_bias;
 
-        let linear_measured_acc = linear_acc * (gravity / self.linear_acc_norm.clone())
+        let linear_measured_acc = linear_acc * self.gravity_norm_factor.clone()
             - state_acc.linear.deref()
             - state_acc_bias.linear.deref();
 
@@ -39,7 +36,7 @@ where
         #[expect(clippy::toplevel_ref_arg)]
         let measurement = stack![linear_measured_acc; angular_measured_acc];
 
-        let noise = &self.imu_acc_measure_noise;
+        let noise = &self.measure_noise.imu_acc;
         #[expect(clippy::toplevel_ref_arg)]
         let noise = stack![noise.linear; noise.angular];
 
@@ -66,13 +63,10 @@ where
         });
 
         let linear_acc_norm = acc_mean.linear.norm();
-        let gravity: T = nalgebra::convert(GRAVITY);
 
         Some(ImuInit {
-            gravity: GravityState::new(
-                -acc_mean.linear.deref() / linear_acc_norm.clone() * gravity,
-            ),
             linear_acc_norm,
+            linear_acc_mean: acc_mean.linear,
             angular_acc_bias: acc_mean.angular.map_state_marker(),
         })
     }
