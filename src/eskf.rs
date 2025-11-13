@@ -1,6 +1,6 @@
 //! Error‑State Kalman Filter.
 
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref, DerefMut, Sub};
 
 use nalgebra::{DefaultAllocator, allocator::Allocator};
 
@@ -23,11 +23,35 @@ where
     pub process_cov: Covariance<S>,
 }
 
-pub struct DeltaTime<T> {
-    /// The time difference between the current and previous `prediction`.
+#[derive(Default, Clone)]
+pub struct KFTime<T> {
     pub predict: T,
-    /// The time difference between the current and previous `measurement`.
     pub observe: T,
+}
+
+pub type DeltaTime<T> = KFTime<T>;
+
+impl<T: Clone> KFTime<T> {
+    pub fn all(t: T) -> Self {
+        Self {
+            predict: t.clone(),
+            observe: t,
+        }
+    }
+}
+
+impl<T> Sub for KFTime<T>
+where
+    T: Sub<Output = T>,
+{
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            predict: self.predict - rhs.predict,
+            observe: self.observe - rhs.observe,
+        }
+    }
 }
 
 pub trait StatePredictor<T> {

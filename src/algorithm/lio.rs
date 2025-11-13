@@ -12,7 +12,7 @@ use crate::{
         measurement::{ImuMeasured, ImuMeasuredStamped, LidarPoint, PointChunkStamped},
     },
     eskf::{
-        DeltaTime, Eskf, StateObserver, StatePredictor,
+        Eskf, KFTime, StateObserver, StatePredictor,
         state::common::{AccState, AccWithBiasState, AngularAccBiasState, GravityState},
     },
     frame::{BodyPoint, Framed, FramedIsometry, frames},
@@ -50,6 +50,7 @@ where
     T: ComplexField,
 {
     eskf: Eskf<State<T>>,
+    last_update_time: KFTime<T>,
     map: VoxelMap<T>,
     // TODO: refactor these config into a config struct
     body_point_process_cov: BodyPointProcessCovConfig<T>,
@@ -58,9 +59,6 @@ where
     // TODO: refactor these fields into a noise config struct
     imu_acc_measure_noise: AccState<T>,
     lidar_point_measure_noise: T,
-    // TODO: refactor these fields into a timer struct
-    last_predict_time: T,
-    last_observe_time: T,
 }
 
 pub struct Config<T: Scalar> {
@@ -90,14 +88,13 @@ where
 
         Self {
             eskf,
+            last_update_time: Default::default(),
             map: VoxelMap::new(config.voxel_map),
             body_point_process_cov: process_cov_config.body_point,
             extrinsics: config.extrinsics,
             linear_acc_norm: imu_init.linear_acc_norm,
             imu_acc_measure_noise: config.imu_acc_measure_noise,
             lidar_point_measure_noise: config.lidar_point_measure_noise,
-            last_predict_time: T::default(),
-            last_observe_time: T::default(),
         }
     }
 
@@ -123,17 +120,15 @@ where
     where
         Eskf<State<T>>: StateObserver<OB>,
     {
-        self.eskf.predict(DeltaTime {
-            predict: timestamp.clone() - self.last_predict_time.clone(),
-            observe: timestamp.clone() - self.last_observe_time.clone(),
-        });
-        self.last_predict_time = timestamp.clone();
+        self.eskf
+            .predict(KFTime::all(timestamp.clone()) - self.last_update_time.clone());
+        self.last_update_time.predict = timestamp.clone();
 
         let observation = f(self);
 
         if let Some(ob) = observation {
             self.eskf.observe(ob);
-            self.last_observe_time = timestamp;
+            self.last_update_time.observe = timestamp;
         }
     }
 
