@@ -1,33 +1,33 @@
-use nalgebra::{Point3, Scalar};
+mod imu;
+mod point_chunk;
 
-use crate::{eskf::state::common::AccState, frame::BodyPoint};
+pub use imu::{ImuMeasured, ImuMeasuredStamped};
+use nalgebra::RealField;
+pub use point_chunk::{LidarPoint, PointChunkStamped};
 
-pub type PointChunkStamped<'a, T, P> = (T, &'a [P]);
-pub type ImuMeasured<T> = AccState<T>;
-pub type ImuMeasuredStamped<'a, T> = (T, &'a ImuMeasured<T>);
+use crate::utils::ToRadians;
 
-pub trait LidarPoint<T: Scalar>: Clone {
-    fn to_body_point(self) -> BodyPoint<T>;
-}
+use super::LIO;
 
-impl<T: Scalar> LidarPoint<T> for [T; 3] {
-    #[inline]
-    fn to_body_point(self) -> BodyPoint<T> {
-        let point = Point3::from(self);
-        BodyPoint::new(point)
-    }
-}
+impl<T> LIO<T>
+where
+    T: RealField + ToRadians + Default,
+{
+    pub fn extend_measurements<'a, P: LidarPoint<T> + 'a>(
+        &mut self,
+        points: impl IntoIterator<Item = PointChunkStamped<'a, T, P>>,
+        imus: impl IntoIterator<Item = ImuMeasuredStamped<'a, T>>,
+    ) {
+        let points = points.into_iter();
+        let mut imus = imus.into_iter();
 
-impl<T: Scalar> LidarPoint<T> for BodyPoint<T> {
-    #[inline(always)]
-    fn to_body_point(self) -> BodyPoint<T> {
-        self
-    }
-}
-
-impl<T: Scalar, P: LidarPoint<T>> LidarPoint<T> for (P, T) {
-    #[inline(always)]
-    fn to_body_point(self) -> BodyPoint<T> {
-        self.0.to_body_point()
+        // TODO: could this be optimized by using `rayon`?
+        points.for_each(|(points_time, point_chunk)| {
+            let imus_before_points = imus
+                .by_ref()
+                .take_while(|(imu_time, _)| imu_time < &points_time);
+            self.extend(imus_before_points);
+            self.extend_point_chunk(points_time, point_chunk);
+        });
     }
 }
