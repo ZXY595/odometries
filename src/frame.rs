@@ -15,23 +15,27 @@ pub struct Framed<T, F> {
 pub type FramedIsometry<T, F> = Framed<IsometryMatrix3<T>, F>;
 
 impl<T, F> Framed<T, F> {
+    #[inline]
     pub const fn new(inner: T) -> Self {
         Self {
             inner,
             frame: PhantomData,
         }
     }
+    #[inline]
     pub fn new_with_frame(inner: T, frame: F) -> Self {
         let _ = frame;
         Self::new(inner)
     }
     /// Apply a function to the inner value of the `Framed` type.
+    #[inline]
     pub fn map_framed<T2>(self, f: impl FnOnce(T) -> T2) -> Framed<T2, F> {
         Framed {
             inner: f(self.inner),
             frame: PhantomData,
         }
     }
+    #[inline]
     pub const fn as_ref(&self) -> Framed<&T, F> {
         let Framed { inner, frame: _ } = self;
         Framed {
@@ -42,6 +46,7 @@ impl<T, F> Framed<T, F> {
 }
 
 impl<T: Scalar, F> FramedPoint<T, F> {
+    #[inline]
     pub fn map_framed_point<T2: Scalar>(&self, f: impl FnMut(T) -> T2) -> FramedPoint<T2, F> {
         Framed {
             inner: self.inner.map(f),
@@ -51,6 +56,7 @@ impl<T: Scalar, F> FramedPoint<T, F> {
 }
 
 impl<T, F1, F2> Framed<T, fn(F1) -> F2> {
+    #[inline]
     pub fn new_transform(inner: T, from: F1, to: F2) -> Self {
         let _ = (from, to);
         Self {
@@ -62,7 +68,6 @@ impl<T, F1, F2> Framed<T, fn(F1) -> F2> {
 
 impl<T, F> Deref for Framed<T, F> {
     type Target = T;
-
     fn deref(&self) -> &Self::Target {
         &self.inner
     }

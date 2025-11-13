@@ -1,4 +1,5 @@
 pub mod estimate;
+pub mod measurement;
 pub mod state;
 
 use std::ops::Deref;
@@ -6,7 +7,10 @@ use std::ops::Deref;
 use state::State;
 
 use crate::{
-    algorithm::lio::estimate::{ImuObserved, PointsObserved},
+    algorithm::lio::{
+        estimate::{ImuObserved, PointsObserved},
+        measurement::{ImuMeasured, ImuMeasuredStamped, LidarPoint, PointChunkStamped},
+    },
     eskf::{
         DeltaTime, Eskf, StateObserver, StatePredictor,
         state::common::{AccState, AccWithBiasState, AngularAccBiasState, GravityState},
@@ -23,6 +27,8 @@ use nalgebra::{ComplexField, RealField, Scalar, stack};
 
 pub use body_point::ProcessCovConfig as BodyPointProcessCovConfig;
 pub use state::ProcessCovConfig as StateProcessCovConfig;
+
+pub const GRAVITY: f64 = 9.81;
 
 /// # Input
 /// ```text
@@ -71,8 +77,6 @@ pub struct ProcessCovConfig<T: Scalar> {
     body_point: BodyPointProcessCovConfig<T>,
 }
 
-pub type ImuMeasurement<T> = AccState<T>;
-
 impl<T> LIO<T>
 where
     T: RealField + ToRadians + Default,
@@ -96,6 +100,25 @@ where
             last_observe_time: T::default(),
         }
     }
+
+    pub fn extend_measurements<'a, P: LidarPoint<T> + 'a>(
+        &mut self,
+        points: impl IntoIterator<Item = PointChunkStamped<'a, T, P>>,
+        imus: impl IntoIterator<Item = ImuMeasuredStamped<'a, T>>,
+    ) {
+        let points = points.into_iter();
+        let mut imus = imus.into_iter();
+
+        // TODO: could this be optimized by using `rayon`?
+        points.for_each(|(points_time, point_chunk)| {
+            let imus_before_points = imus
+                .by_ref()
+                .take_while(|(imu_time, _)| imu_time < &points_time);
+            self.extend(imus_before_points);
+            self.extend_point_chunk(points_time, point_chunk);
+        });
+    }
+
     fn eskf_update<OB>(&mut self, timestamp: T, f: impl FnOnce(&Self) -> Option<OB>)
     where
         Eskf<State<T>>: StateObserver<OB>,
@@ -113,31 +136,35 @@ where
             self.last_observe_time = timestamp;
         }
     }
-    pub fn extend_points_once(
-        &mut self,
-        points: impl IntoIterator<Item = BodyPoint<T>, IntoIter: Clone>,
-        timestamp: T,
-    ) {
-        let points = points.into_iter();
 
-        self.eskf_update(timestamp, |ilo| ilo.observe_points(points.clone()));
+    /// The reason why `&'a [impl LidarPoint<T>]` instead of `impl IntoIterator<Item = LidarPoint<T>>`
+    /// is that we need to iterate the point chunk twice, once for observation and once for updating the map.
+    pub fn extend_point_chunk(&mut self, timestamp: T, points: &[impl LidarPoint<T>]) {
+        self.eskf_update(timestamp, |ilo| {
+            ilo.observe_points(points.iter().cloned().map(LidarPoint::to_body_point))
+        });
 
         let body_to_imu = &self.extrinsics;
         let imu_to_world = self.eskf.pose.deref();
         let body_to_world = body_to_imu * imu_to_world;
 
-        let new_world_points = points.map(|point| {
-            UncertainWorldPoint::from_body_point(
-                point,
-                self.body_point_process_cov.clone(),
-                body_to_imu,
-                imu_to_world,
-                &body_to_world,
-                &self.eskf.cov,
-            )
-        });
+        let new_world_points = points
+            .iter()
+            .cloned()
+            .map(LidarPoint::to_body_point)
+            .map(|point| {
+                UncertainWorldPoint::from_body_point(
+                    point,
+                    self.body_point_process_cov.clone(),
+                    body_to_imu,
+                    imu_to_world,
+                    &body_to_world,
+                    &self.eskf.cov,
+                )
+            });
         self.map.extend(new_world_points);
     }
+
     fn observe_points(
         &self,
         points: impl Iterator<Item = BodyPoint<T>>,
@@ -189,6 +216,33 @@ where
         }
         Some(observation)
     }
+
+    fn observe_imu(&self, imu_acc: &ImuMeasured<T>) -> ImuObserved<T> {
+        let linear_acc = imu_acc.linear.deref();
+        let angular_acc = imu_acc.angular.deref();
+        let gravity: T = nalgebra::convert(GRAVITY);
+
+        let AccWithBiasState {
+            acc: state_acc,
+            bias: state_acc_bias,
+        } = &self.eskf.state.acc_with_bias;
+
+        let linear_measured_acc = linear_acc * (gravity / self.linear_acc_norm.clone())
+            - state_acc.linear.deref()
+            - state_acc_bias.linear.deref();
+
+        let angular_measured_acc =
+            angular_acc - state_acc.angular.deref() - state_acc_bias.angular.deref();
+
+        #[expect(clippy::toplevel_ref_arg)]
+        let measurement = stack![linear_measured_acc; angular_measured_acc];
+
+        let noise = &self.imu_acc_measure_noise;
+        #[expect(clippy::toplevel_ref_arg)]
+        let noise = stack![noise.linear; noise.angular];
+
+        ImuObserved::new_no_model(measurement, noise)
+    }
 }
 
 pub struct ImuInit<T> {
@@ -197,13 +251,13 @@ pub struct ImuInit<T> {
     gravity: GravityState<T>,
 }
 
-impl<T> FromIterator<ImuMeasurement<T>> for Option<ImuInit<T>>
+impl<T> FromIterator<ImuMeasured<T>> for Option<ImuInit<T>>
 where
     T: RealField + Default,
 {
     fn from_iter<I>(iter: I) -> Self
     where
-        I: IntoIterator<Item = ImuMeasurement<T>>,
+        I: IntoIterator<Item = ImuMeasured<T>>,
     {
         let mut iter = iter.into_iter().enumerate();
 
@@ -216,7 +270,7 @@ where
         });
 
         let linear_acc_norm = acc_mean.linear.norm();
-        let gravity: T = nalgebra::convert(9.81);
+        let gravity: T = nalgebra::convert(GRAVITY);
 
         Some(ImuInit {
             gravity: GravityState::new(
@@ -228,57 +282,32 @@ where
     }
 }
 
-impl<T> Extend<(ImuMeasurement<T>, T)> for LIO<T>
+impl<'a, T> Extend<ImuMeasuredStamped<'a, T>> for LIO<T>
 where
     T: RealField + ToRadians + Default,
 {
     fn extend<I>(&mut self, iter: I)
     where
-        I: IntoIterator<Item = (ImuMeasurement<T>, T)>,
+        I: IntoIterator<Item = ImuMeasuredStamped<'a, T>>,
     {
-        iter.into_iter().for_each(|(acc, timestamp)| {
-            let linear_acc = acc.linear.deref();
-            let angular_acc = acc.angular.deref();
-            self.eskf_update(timestamp, |ilo| {
-                let gravity: T = nalgebra::convert(9.81);
-
-                let AccWithBiasState {
-                    acc: state_acc,
-                    bias: state_acc_bias,
-                } = &ilo.eskf.state.acc_with_bias;
-
-                let linear_measured_acc = linear_acc * (gravity / ilo.linear_acc_norm.clone())
-                    - state_acc.linear.deref()
-                    - state_acc_bias.linear.deref();
-
-                let angular_measured_acc =
-                    angular_acc - state_acc.angular.deref() - state_acc_bias.angular.deref();
-
-                #[expect(clippy::toplevel_ref_arg)]
-                let measurement = stack![linear_measured_acc; angular_measured_acc];
-
-                let noise = &ilo.imu_acc_measure_noise;
-                #[expect(clippy::toplevel_ref_arg)]
-                let noise = stack![noise.linear; noise.angular];
-
-                Some(ImuObserved::new_no_model(measurement, noise))
-            });
+        iter.into_iter().for_each(|(timestamp, acc)| {
+            self.eskf_update(timestamp, |ilo| Some(ilo.observe_imu(acc)));
         })
     }
 }
 
-impl<P, T> Extend<(P, T)> for LIO<T>
+impl<'a, P, T> Extend<PointChunkStamped<'a, T, P>> for LIO<T>
 where
     T: RealField + ToRadians + Default,
-    P: IntoIterator<Item = BodyPoint<T>, IntoIter: Clone>,
+    P: LidarPoint<T>,
 {
     fn extend<I>(&mut self, iter: I)
     where
-        I: IntoIterator<Item = (P, T)>,
+        I: IntoIterator<Item = (T, &'a [P])>,
     {
         // TODO: could this be optimized by using `rayon`?
-        iter.into_iter().for_each(|(points, timestamp)| {
-            self.extend_points_once(points, timestamp);
+        iter.into_iter().for_each(|(timestamp, points)| {
+            self.extend_point_chunk(timestamp, points);
         });
     }
 }

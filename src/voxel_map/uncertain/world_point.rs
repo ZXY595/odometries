@@ -75,7 +75,7 @@ where
         let imu_point = body_point.deref() * body_to_imu;
         let cross_matrix_imu = imu_point.coords.cross_matrix();
 
-        UncertainWorldPoint::from_uncertain_body_point(
+        Self::from_uncertain_body_point(
             body_point,
             imu_to_world,
             body_to_world,
