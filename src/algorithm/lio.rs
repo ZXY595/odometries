@@ -1,3 +1,5 @@
+//! Most of ideas comes from Leg-Kilo
+
 pub mod estimate;
 pub mod measurement;
 pub mod state;
@@ -51,15 +53,15 @@ where
 }
 
 pub struct Config<T: Scalar> {
-    process_cov: ProcessCovConfig<T>,
-    voxel_map: voxel_map::Config<T>,
-    extrinsics: FramedIsometry<T, fn(frames::Body) -> frames::Imu>,
-    meaure_noise: MeasureNoiseConfig<T>,
-    gravity: T,
+    pub process_cov: ProcessCovConfig<T>,
+    pub voxel_map: voxel_map::Config<T>,
+    pub extrinsics: FramedIsometry<T, fn(frames::Body) -> frames::Imu>,
+    pub measure_noise: MeasureNoiseConfig<T>,
+    pub gravity: T,
 }
 
 pub struct MeasureNoiseConfig<T: Scalar> {
-    imu_acc: AccState<T>,
+    pub imu_acc: AccState<T>,
     lidar_point: T,
 }
 
@@ -107,7 +109,7 @@ where
             body_point_process_cov: config.process_cov.body_point,
             extrinsics: config.extrinsics,
             gravity_norm_factor,
-            measure_noise: config.meaure_noise,
+            measure_noise: config.measure_noise,
         }
     }
 

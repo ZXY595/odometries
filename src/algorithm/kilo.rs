@@ -1,5 +1,4 @@
 //! An inertial–LiDAR tightly‑coupled error‑state Kalman filter odometry system.
-//! Most of the ideas comes from Leg-Kilo
 
 pub mod estimate;
 pub mod state;
