@@ -1,6 +1,6 @@
 use crate::{
+    eskf::uncertain::Uncertained,
     frame::{BodyPoint, ImuPoint, WorldPoint},
-    uncertain::Uncertained,
 };
 
 pub mod body_point;

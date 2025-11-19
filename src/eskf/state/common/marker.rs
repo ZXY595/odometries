@@ -12,14 +12,29 @@
 //     };
 // }
 
+#[derive(Debug)]
 pub struct Pose;
+
+#[derive(Debug)]
 pub struct Rotation;
+
+#[derive(Debug)]
 pub struct Position;
+
+#[derive(Debug)]
 pub struct Velocity;
 // pub struct Bias;
 pub struct AccBias;
+
+#[derive(Debug)]
 pub struct GyroBias;
+
+#[derive(Debug)]
 pub struct Gravity;
+
 // pub struct Accel;
+#[derive(Debug)]
 pub struct LinearAcc;
+
+#[derive(Debug)]
 pub struct AngularAcc;

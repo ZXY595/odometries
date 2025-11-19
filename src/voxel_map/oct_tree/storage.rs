@@ -138,7 +138,6 @@ impl<T: Scalar> VacantAlloc<T> {
         node: OctTreeNode<T>,
         f: impl FnOnce(Option<TreeID<T>>),
     ) -> impl FnOnce(&mut TreeStorage<T>) + 'static {
-        #[cfg(debug_assertions)]
         let index = self.0.clone();
         f(self.0);
         move |storage| {

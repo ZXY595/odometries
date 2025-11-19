@@ -93,7 +93,6 @@ where
                 #where_clause
                 {
                     type Offset = #offset;
-                    type EndOffset = DimNameSum<Self::Offset, Self::Dim>;
                 }
             })
         })

@@ -1,17 +1,28 @@
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
-use nalgebra::{RealField, stack};
+use nalgebra::{RealField, Scalar, stack};
 
 use crate::{
-    algorithm::lio::{ImuInit, estimate::ImuObserved},
-    eskf::state::common::{AccState, AccWithBiasState, GravityState},
+    algorithm::lio::{ImuInit, state::State},
+    eskf::{
+        StateFilter,
+        observe::NoModelObservation,
+        state::common::{AccState, AccWithBiasState},
+    },
     utils::ToRadians,
 };
+
+pub type ImuObserved<T> = NoModelObservation<AccWithBiasState<T>, State<T>>;
 
 use super::LIO;
 
 pub type ImuMeasured<T> = AccState<T>;
-pub type ImuMeasuredStamped<'a, T> = (T, &'a ImuMeasured<T>);
+
+#[derive(Debug)]
+pub struct ImuMeasuredStamped<T: Scalar> {
+    pub measured: ImuMeasured<T>,
+    pub timestamp: T,
+}
 
 impl<T> LIO<T>
 where
@@ -40,25 +51,59 @@ where
         #[expect(clippy::toplevel_ref_arg)]
         let noise = stack![noise.linear; noise.angular];
 
-        ImuObserved::new_no_model(measurement, noise)
+        ImuObserved::new_no_model(dbg!(measurement), noise)
     }
 }
 
-impl<T> FromIterator<ImuMeasured<T>> for Option<ImuInit<T>>
+impl<T: Scalar> ImuMeasuredStamped<T> {
+    pub fn from_tuple((timesstamp, acc_state): (T, ImuMeasured<T>)) -> Self {
+        Self {
+            timestamp: timesstamp,
+            measured: acc_state,
+        }
+    }
+    pub fn new(timesstamp: T, acc_state: ImuMeasured<T>) -> Self {
+        Self {
+            timestamp: timesstamp,
+            measured: acc_state,
+        }
+    }
+}
+
+impl<T: Scalar> Deref for ImuMeasuredStamped<T> {
+    type Target = ImuMeasured<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.measured
+    }
+}
+
+impl<T: Scalar> DerefMut for ImuMeasuredStamped<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.measured
+    }
+}
+
+impl<T> FromIterator<ImuMeasuredStamped<T>> for Option<ImuInit<T>>
 where
     T: RealField + Default,
 {
     fn from_iter<I>(iter: I) -> Self
     where
-        I: IntoIterator<Item = ImuMeasured<T>>,
+        I: IntoIterator<Item = ImuMeasuredStamped<T>>,
     {
         let mut iter = iter.into_iter().enumerate();
 
         let (_, first) = iter.next()?;
-        let acc_mean = iter.fold(first, |mut mean_acc, (i, current_acc)| {
+        let ImuMeasuredStamped {
+            timestamp,
+            measured: acc_mean,
+        } = iter.fold(first, |mut mean_acc, (i, current_acc)| {
             let n: T = nalgebra::convert(i as f64);
-            mean_acc.linear += (current_acc.linear.deref() - mean_acc.linear.deref()) / n.clone();
-            mean_acc.angular += (current_acc.angular.deref() - mean_acc.angular.deref()) / n;
+            mean_acc.measured.linear +=
+                (current_acc.linear.deref() - mean_acc.linear.deref()) / n.clone();
+            mean_acc.measured.angular +=
+                (current_acc.angular.deref() - mean_acc.angular.deref()) / n;
             mean_acc
         });
 
@@ -68,20 +113,38 @@ where
             linear_acc_norm,
             linear_acc_mean: acc_mean.linear,
             angular_acc_bias: acc_mean.angular.map_state_marker(),
+            timestamp_init: timestamp,
         })
     }
 }
 
-impl<'a, T> Extend<ImuMeasuredStamped<'a, T>> for LIO<T>
+impl<T> Extend<ImuMeasuredStamped<T>> for Option<ImuInit<T>>
+where
+    T: RealField + Default,
+{
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = ImuMeasuredStamped<T>>,
+    {
+        *self = iter.into_iter().collect();
+    }
+}
+
+impl<T> Extend<ImuMeasuredStamped<T>> for LIO<T>
 where
     T: RealField + ToRadians + Default,
 {
     fn extend<I>(&mut self, iter: I)
     where
-        I: IntoIterator<Item = ImuMeasuredStamped<'a, T>>,
+        I: IntoIterator<Item = ImuMeasuredStamped<T>>,
     {
-        iter.into_iter().for_each(|(timestamp, acc)| {
-            self.eskf_update(timestamp, |ilo| Some(ilo.observe_imu(acc)));
-        })
+        iter.into_iter().for_each(
+            |ImuMeasuredStamped {
+                 timestamp,
+                 measured,
+             }| {
+                self.update(timestamp, |ilo| Some(ilo.observe_imu(&measured)));
+            },
+        )
     }
 }

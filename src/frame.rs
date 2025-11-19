@@ -5,14 +5,13 @@ use std::{
 };
 
 pub use frames::*;
-use nalgebra::{ClosedAddAssign, IsometryMatrix3, Scalar, Vector3};
+use nalgebra::{ClosedAddAssign, Scalar, Vector3};
 
+#[derive(Debug)]
 pub struct Framed<T, F> {
     inner: T,
     frame: PhantomData<F>,
 }
-
-pub type FramedIsometry<T, F> = Framed<IsometryMatrix3<T>, F>;
 
 impl<T, F> Framed<T, F> {
     #[inline]

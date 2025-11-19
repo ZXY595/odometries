@@ -7,9 +7,9 @@ use std::ops::Deref;
 use nalgebra::{ComplexField, Point3, RealField};
 use nohash_hasher::IntMap;
 pub use residual::Residual;
+use simba::scalar::SupersetOf;
 
 use crate::{
-    frame::{IsometryFramed, frames},
     utils::ToVoxelIndex,
     voxel_map::{
         oct_tree::OctTreeRoot,
@@ -46,10 +46,19 @@ pub struct Config<T> {
     /// delta pose change threshold to update map sliding window
     #[expect(unused)]
     sliding_thresh: T,
+}
 
-    /// the transform from body(lidar) frame to IMU frame
-    #[expect(unused)]
-    extrinsic_transform: IsometryFramed<T, fn(frames::Body) -> frames::Imu>,
+impl<T: SupersetOf<f64>> Default for Config<T> {
+    fn default() -> Self {
+        Self {
+            plane: Default::default(),
+            sigma_ratio: nalgebra::convert(3.0),
+            voxel_grid_resolution: nalgebra::convert(0.5),
+            voxel_size: nalgebra::convert(0.5),
+            map_size: 200,
+            sliding_thresh: nalgebra::convert(8.0),
+        }
+    }
 }
 
 impl<T> VoxelMap<T>

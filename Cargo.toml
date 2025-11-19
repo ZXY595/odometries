@@ -21,6 +21,10 @@ num-traits = "0.2"
 odometries-macros = { path = "./odometries-macros" }
 simba = "0.9"
 
+[[example]]
+name = "mid360"
+path = "example/mid360.rs"
+
 [dependencies]
 itertools = "0.14"
 nalgebra.workspace = true
@@ -30,6 +34,11 @@ odometries-macros.workspace = true
 rayon = { version = "1.11", optional = true }
 simba.workspace = true
 slab = "0.4"
+
+[dev-dependencies]
+livox2 = { version = "0.2.2", features = ["async-net", "simd"] }
+# rerun = "0.27.2"
+smol = "2.0"
 
 [features]
 # rayon = [] # planning to add rayon support

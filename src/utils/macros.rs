@@ -3,6 +3,8 @@
 /// # Example
 /// ```rust
 /// use nalgebra::{U3, U4};
+/// use odometries::AnyStorageMatrix;
+///
 /// fn test(h: AnyStorageMatrix!(f32, U3, U4)) {
 ///     let _ = h.transpose();
 /// }
@@ -11,5 +13,12 @@
 macro_rules! AnyStorageMatrix {
     ( $name:ty, $rows:ty, $cols:ty ) => {
         nalgebra::Matrix<$name, $rows, $cols, impl nalgebra::Storage<$name, $rows, $cols>>
+    };
+}
+
+#[macro_export]
+macro_rules! AnyStorageVector {
+    ( $name:ty, $rows:ty ) => {
+        nalgebra::Vector<$name, $rows, impl nalgebra::Storage<$name, $rows, nalgebra::U1>>
     };
 }

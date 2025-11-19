@@ -104,3 +104,13 @@ where
         self.sensitivity_mut::<Sub, Sub>()
     }
 }
+
+impl<S> Default for Covariance<S>
+where
+    S: KFState<Element: Default>,
+    DefaultAllocator: Allocator<S::Dim, S::Dim, Buffer<S::Element>: Default>,
+{
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}

@@ -1,11 +1,13 @@
 mod macros;
 use nalgebra::{
-    Cholesky, ComplexField, DefaultAllocator, Dim, DimAdd, DimMin, DimMinimum, DimSum, Matrix,
-    Matrix3, OMatrix, Point3, RawStorageMut, Scalar, U1, Vector3, VectorViewMut, ViewStorageMut,
-    allocator::Allocator,
+    Cholesky, ClosedAddAssign, ComplexField, DefaultAllocator, Dim, DimAdd, DimMin, DimMinimum,
+    DimSum, Matrix, Matrix3, OMatrix, Point3, RawStorageMut, Scalar, U1, Vector3, VectorViewMut,
+    ViewStorageMut, allocator::Allocator,
 };
 use num_traits::float::FloatCore;
 use std::{hash::Hash, iter::Sum};
+
+use crate::AnyStorageVector;
 
 pub trait ViewDiagonalMut {
     type Element;
@@ -14,6 +16,17 @@ pub trait ViewDiagonalMut {
     fn view_diagonal_mut(
         &mut self,
     ) -> VectorViewMut<'_, Self::Element, Self::Dim, Self::RStride, U1>;
+
+    #[inline]
+    fn diagonal_add(mut self, value: AnyStorageVector!(Self::Element, Self::Dim)) -> Self
+    where
+        Self: Sized,
+        Self::Element: Scalar + ClosedAddAssign,
+    {
+        use std::ops::AddAssign;
+        self.view_diagonal_mut().add_assign(value);
+        self
+    }
 }
 
 impl<T, R, C> ViewDiagonalMut for OMatrix<T, R, C>

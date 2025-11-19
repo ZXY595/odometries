@@ -21,7 +21,7 @@ pub fn derive_kf_state(ts: TokenStream) -> TokenStream {
 ///     state1: State1,
 /// }
 /// #[sub_state_of(State)]
-/// struct State1<T: Scalar>(State2<T>, State2<T>);
+/// struct State1<T: Scalar>(State2<T>, State3<T>);
 /// ```
 #[proc_macro_attribute]
 pub fn sub_state_of(mut arg: TokenStream, ts: TokenStream) -> TokenStream {

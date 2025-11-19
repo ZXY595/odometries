@@ -1,4 +1,5 @@
 use nalgebra::{Matrix1, Matrix2, Matrix3, Matrix3x2, RealField, Vector3};
+use simba::scalar::SupersetOf;
 
 use crate::{
     frame::BodyPoint,
@@ -10,6 +11,15 @@ use crate::{
 pub struct ProcessCovConfig<T> {
     pub distance: T,
     pub direction: T,
+}
+
+impl<T: SupersetOf<f64>> Default for ProcessCovConfig<T> {
+    fn default() -> Self {
+        Self {
+            distance: nalgebra::convert(0.04),
+            direction: nalgebra::convert(0.2),
+        }
+    }
 }
 
 impl<T> UncertainBodyPoint<T>

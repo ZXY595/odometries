@@ -12,6 +12,7 @@ use nalgebra::{
     stack,
 };
 use num_traits::Zero;
+use simba::scalar::SupersetOf;
 
 pub struct Plane<T: Scalar> {
     pub normal: Vector3<T>,
@@ -29,6 +30,21 @@ pub struct PlaneConfig<T> {
     pub plane_eigen_threshold: T,
     /// maximum number of points for a tree
     pub max_points: usize,
+}
+
+impl<T> Default for PlaneConfig<T>
+where
+    T: SupersetOf<f64>,
+{
+    fn default() -> Self {
+        Self {
+            max_layer: 4,
+            plane_init_threshold: 5,
+            update_threshold: 5,
+            plane_eigen_threshold: nalgebra::convert(0.01),
+            max_points: 50,
+        }
+    }
 }
 
 impl<T: Scalar> KFState for Plane<T> {

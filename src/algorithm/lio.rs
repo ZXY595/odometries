@@ -1,19 +1,20 @@
 //! Most of ideas comes from Leg-Kilo
 
-pub mod estimate;
 pub mod measurement;
+pub mod predict;
 pub mod state;
 
 use std::ops::Deref;
 
+use simba::scalar::SupersetOf;
 use state::State;
 
 use crate::{
     eskf::{
-        Eskf, KFTime, StateObserver, StatePredictor,
-        state::common::{AccState, AngularAccBiasState, GravityState, LinearAccState},
+        Eskf,
+        state::common::{AngularAccBiasState, GravityState, LinearAccState},
     },
-    frame::{FramedIsometry, frames},
+    frame::{IsometryFramed, frames},
     utils::ToRadians,
     voxel_map::{self, VoxelMap, uncertain::body_point},
 };
@@ -21,7 +22,10 @@ use crate::{
 use nalgebra::{ComplexField, RealField, Scalar};
 
 pub use body_point::ProcessCovConfig as BodyPointProcessCovConfig;
-pub use state::ProcessCovConfig as StateProcessCovConfig;
+pub use measurement::MeasureNoiseConfig;
+pub use predict::ProcessCovConfig as StateProcessCovConfig;
+
+pub use measurement::{ImuMeasured, ImuMeasuredStamped};
 
 /// # Input
 /// ```text
@@ -43,49 +47,45 @@ where
     T: ComplexField,
 {
     eskf: Eskf<State<T>>,
-    last_update_time: KFTime<T>,
     map: VoxelMap<T>,
     // configs
     body_point_process_cov: BodyPointProcessCovConfig<T>,
-    extrinsics: FramedIsometry<T, fn(frames::Body) -> frames::Imu>,
+    extrinsics: IsometryFramed<T, fn(frames::Body) -> frames::Imu>,
     measure_noise: MeasureNoiseConfig<T>,
     gravity_norm_factor: T,
 }
 
-pub struct Config<T: Scalar> {
-    pub process_cov: ProcessCovConfig<T>,
-    pub voxel_map: voxel_map::Config<T>,
-    pub extrinsics: FramedIsometry<T, fn(frames::Body) -> frames::Imu>,
-    pub measure_noise: MeasureNoiseConfig<T>,
-    pub gravity: T,
-}
-
-pub struct MeasureNoiseConfig<T: Scalar> {
-    pub imu_acc: AccState<T>,
-    lidar_point: T,
-}
-
-pub struct ProcessCovConfig<T: Scalar> {
-    state: StateProcessCovConfig<T>,
-    body_point: BodyPointProcessCovConfig<T>,
-}
-
-/// The imu initialization returned by
-/// [`impl Iterator<Item = ImuMeasured<T>>::collect`](std::iter::Iterator::collect)
+/// The imu initialization, which can be created by
+/// [`impl Iterator<Item = ImuMeasured<T>>::collect`](std::iter::Iterator::collect).
 ///
 /// Can be used to create odometries that need imu observation.
+#[derive(Debug)]
 pub struct ImuInit<T> {
     linear_acc_norm: T,
     linear_acc_mean: LinearAccState<T>,
     angular_acc_bias: AngularAccBiasState<T>,
+    timestamp_init: T,
+}
+
+pub struct Config<T: Scalar> {
+    pub process_cov: ProcessCovConfig<T>,
+    pub measure_noise: MeasureNoiseConfig<T>,
+    pub extrinsics: IsometryFramed<T, fn(frames::Body) -> frames::Imu>,
+    pub gravity: T,
+    pub voxel_map: voxel_map::Config<T>,
+}
+
+pub struct ProcessCovConfig<T> {
+    pub state: StateProcessCovConfig<T>,
+    pub body_point: BodyPointProcessCovConfig<T>,
 }
 
 impl<T> ImuInit<T>
 where
     T: RealField + ToRadians + Default,
 {
-    pub fn new_lio(self, config: Config<T>) -> LIO<T> {
-        LIO::new(self, config)
+    pub fn new_lio(self, lio_config: Config<T>) -> LIO<T> {
+        LIO::new(self, lio_config)
     }
 }
 
@@ -94,7 +94,7 @@ where
     T: RealField + ToRadians + Default,
 {
     pub fn new(imu_init: ImuInit<T>, config: Config<T>) -> Self {
-        let mut eskf = Eskf::new(config.process_cov.state.into());
+        let mut eskf = Eskf::new(config.process_cov.state.into(), imu_init.timestamp_init);
 
         let gravity_norm_factor = config.gravity / imu_init.linear_acc_norm.clone();
 
@@ -104,7 +104,6 @@ where
 
         Self {
             eskf,
-            last_update_time: Default::default(),
             map: VoxelMap::new(config.voxel_map),
             body_point_process_cov: config.process_cov.body_point,
             extrinsics: config.extrinsics,
@@ -113,23 +112,29 @@ where
         }
     }
 
-    pub fn get_pose(&self) -> &FramedIsometry<T, fn(frames::Imu) -> frames::World> {
+    #[inline]
+    pub fn get_pose(&self) -> &IsometryFramed<T, fn(frames::Imu) -> frames::World> {
         &self.eskf.pose.0
     }
+}
 
-    fn eskf_update<OB>(&mut self, timestamp: T, f: impl FnOnce(&Self) -> Option<OB>)
-    where
-        Eskf<State<T>>: StateObserver<OB>,
-    {
-        self.eskf
-            .predict(KFTime::all(timestamp.clone()) - self.last_update_time.clone());
-        self.last_update_time.predict = timestamp.clone();
+impl<T: RealField> Default for Config<T> {
+    fn default() -> Self {
+        Self {
+            process_cov: Default::default(),
+            measure_noise: Default::default(),
+            voxel_map: Default::default(),
+            extrinsics: Default::default(),
+            gravity: nalgebra::convert(9.81_f64),
+        }
+    }
+}
 
-        let observation = f(self);
-
-        if let Some(ob) = observation {
-            self.eskf.observe(ob);
-            self.last_update_time.observe = timestamp;
+impl<T: SupersetOf<f64>> Default for ProcessCovConfig<T> {
+    fn default() -> Self {
+        Self {
+            state: Default::default(),
+            body_point: Default::default(),
         }
     }
 }

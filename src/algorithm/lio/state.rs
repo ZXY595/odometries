@@ -1,17 +1,15 @@
-use crate::AnyStorageMatrix;
+use std::borrow::{Borrow, BorrowMut};
+
 use odometries_macros::{KFState, VectorAddAssign, sub_state_of};
 
 use crate::eskf::{
-    Covariance,
-    state::{
-        StateDim,
-        common::*,
-        macro_export::*,
-        sensitivity::{SensitiveTo, UnbiasedState},
-    },
+    Eskf,
+    state::{common::*, macro_export::*},
 };
 
-use nalgebra::{ClosedAddAssign, OMatrix, RealField, Scalar, SimdRealField};
+use nalgebra::{ComplexField, RealField, Scalar, SimdRealField};
+
+use super::LIO;
 
 #[derive(KFState, VectorAddAssign)]
 #[element(T)]
@@ -40,58 +38,6 @@ struct AccState<T: Scalar>(LinearAccState<T>, AngularAccState<T>);
 #[sub_state_of(State)]
 struct BiasState<T: Scalar>(LinearAccBiasState<T>, AngularAccBiasState<T>);
 
-impl<T> SensitiveTo<State<T>> for AccWithBiasState<T>
-where
-    T: Scalar + ClosedAddAssign,
-{
-    type SensiDim = StateDim<AccState<T>>;
-
-    fn sensitivity_to_super(
-        cov: &Covariance<State<T>>,
-    ) -> AnyStorageMatrix!(T, StateDim<State<T>>, Self::SensiDim) {
-        UnbiasedState::<AccState<T>>::sensitivity_to_super(cov)
-            + UnbiasedState::<BiasState<T>>::sensitivity_to_super(cov)
-    }
-
-    fn sensitivity_from_super(
-        cov: &Covariance<State<T>>,
-    ) -> AnyStorageMatrix!(T, Self::SensiDim, StateDim<State<T>>) {
-        UnbiasedState::<AccState<T>>::sensitivity_from_super(cov)
-            + UnbiasedState::<BiasState<T>>::sensitivity_from_super(cov)
-    }
-}
-
-pub struct ProcessCovConfig<T: Scalar> {
-    pub velocity: T,
-    pub accel_bias: T,
-    pub gyro_bias: T,
-    pub gravity: T,
-    pub linear: T,
-    pub angular: T,
-}
-
-impl<T> From<ProcessCovConfig<T>> for Covariance<State<T>>
-where
-    T: Scalar + Default,
-{
-    fn from(value: ProcessCovConfig<T>) -> Self {
-        let mut cov = Covariance::<State<T>>(OMatrix::default());
-        cov.sub_covariance_mut::<VelocityState<T>>()
-            .fill_diagonal(value.velocity);
-        cov.sub_covariance_mut::<LinearAccBiasState<T>>()
-            .fill_diagonal(value.accel_bias);
-        cov.sub_covariance_mut::<AngularAccBiasState<T>>()
-            .fill_diagonal(value.gyro_bias);
-        cov.sub_covariance_mut::<GravityState<T>>()
-            .fill_diagonal(value.gravity);
-        cov.sub_covariance_mut::<LinearAccState<T>>()
-            .fill_diagonal(value.linear);
-        cov.sub_covariance_mut::<AngularAccState<T>>()
-            .fill_diagonal(value.angular);
-        cov
-    }
-}
-
 impl<T> Default for State<T>
 where
     T: Default + SimdRealField<Element: SimdRealField>,
@@ -103,6 +49,24 @@ where
             gravity: Default::default(),
             acc_with_bias: Default::default(),
         }
+    }
+}
+
+impl<T> Borrow<Eskf<State<T>>> for LIO<T>
+where
+    T: ComplexField,
+{
+    fn borrow(&self) -> &Eskf<State<T>> {
+        &self.eskf
+    }
+}
+
+impl<T> BorrowMut<Eskf<State<T>>> for LIO<T>
+where
+    T: ComplexField,
+{
+    fn borrow_mut(&mut self) -> &mut Eskf<State<T>> {
+        &mut self.eskf
     }
 }
 
@@ -135,21 +99,29 @@ mod tests {
         assert_eq!(SubStateOffset::<VelocityState<TestT>>::DIM, 6);
         assert_eq!(SubStateEndOffset::<VelocityState<TestT>>::DIM, 9);
 
-        assert_eq!(SubStateOffset::<GravityState<TestT>>::DIM, 15);
-        assert_eq!(SubStateEndOffset::<GravityState<TestT>>::DIM, 18);
+        assert_eq!(SubStateOffset::<GravityState<TestT>>::DIM, 9);
+        assert_eq!(SubStateEndOffset::<GravityState<TestT>>::DIM, 12);
 
-        assert_eq!(SubStateOffset::<AccState<TestT>>::DIM, 9);
-        assert_eq!(SubStateEndOffset::<AccState<TestT>>::DIM, 15);
-        assert_eq!(SubStateOffset::<LinearAccState<TestT>>::DIM, 9);
-        assert_eq!(SubStateEndOffset::<LinearAccState<TestT>>::DIM, 12);
-        assert_eq!(SubStateOffset::<AngularAccState<TestT>>::DIM, 12);
-        assert_eq!(SubStateEndOffset::<AngularAccState<TestT>>::DIM, 15);
+        assert_eq!(SubStateOffset::<AccWithBiasState<TestT>>::DIM, 12);
+
+        assert_eq!(SubStateOffset::<AccState<TestT>>::DIM, 12);
+
+        assert_eq!(SubStateOffset::<LinearAccState<TestT>>::DIM, 12);
+        assert_eq!(SubStateEndOffset::<LinearAccState<TestT>>::DIM, 15);
+        assert_eq!(SubStateOffset::<AngularAccState<TestT>>::DIM, 15);
+        assert_eq!(SubStateEndOffset::<AngularAccState<TestT>>::DIM, 18);
+
+        assert_eq!(SubStateEndOffset::<AccState<TestT>>::DIM, 18);
 
         assert_eq!(SubStateOffset::<BiasState<TestT>>::DIM, 18);
-        assert_eq!(SubStateEndOffset::<BiasState<TestT>>::DIM, 24);
+
         assert_eq!(SubStateOffset::<LinearAccBiasState<TestT>>::DIM, 18);
         assert_eq!(SubStateEndOffset::<LinearAccBiasState<TestT>>::DIM, 21);
         assert_eq!(SubStateOffset::<AngularAccBiasState<TestT>>::DIM, 21);
         assert_eq!(SubStateEndOffset::<AngularAccBiasState<TestT>>::DIM, 24);
+
+        assert_eq!(SubStateEndOffset::<BiasState<TestT>>::DIM, 24);
+
+        assert_eq!(SubStateEndOffset::<AccWithBiasState<TestT>>::DIM, 24);
     }
 }

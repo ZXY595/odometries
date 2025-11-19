@@ -1,23 +1,47 @@
 mod imu;
-mod point_chunk;
+mod points;
 
 pub use imu::{ImuMeasured, ImuMeasuredStamped};
-use nalgebra::RealField;
-pub use point_chunk::{LidarPoint, PointChunkStamped};
+use nalgebra::{RealField, Scalar};
+pub use points::{LidarPoint, PointsStamped};
+use simba::scalar::SupersetOf;
 
-use crate::utils::ToRadians;
+use crate::{eskf::state::common::AccState, utils::ToRadians};
 
 use super::LIO;
+
+pub struct MeasureNoiseConfig<T: Scalar> {
+    pub imu_acc: AccState<T>,
+    pub lidar_point: T,
+}
+
+impl<T: Scalar + SupersetOf<f64>> Default for MeasureNoiseConfig<T> {
+    fn default() -> Self {
+        Self {
+            imu_acc: AccState::new(
+                nalgebra::convert(0.1),
+                nalgebra::convert(0.1),
+                nalgebra::convert(0.1),
+                nalgebra::convert(0.01),
+                nalgebra::convert(0.01),
+                nalgebra::convert(0.01),
+            ),
+            lidar_point: nalgebra::convert(0.01),
+        }
+    }
+}
 
 impl<T> LIO<T>
 where
     T: RealField + ToRadians + Default,
 {
-    pub fn extend_measurements<'a, P: LidarPoint<T> + 'a>(
+    pub fn extend_measurements<'a, P>(
         &mut self,
-        points: impl IntoIterator<Item = PointChunkStamped<'a, T, P>>,
-        imus: impl IntoIterator<Item = ImuMeasuredStamped<'a, T>>,
-    ) {
+        points: impl IntoIterator<Item = PointsStamped<'a, T, P>>,
+        imus: impl IntoIterator<Item = ImuMeasuredStamped<T>>,
+    ) where
+        P: IntoIterator<Item: LidarPoint<T>, IntoIter: Clone> + 'a,
+    {
         let points = points.into_iter();
         let mut imus = imus.into_iter();
 
@@ -25,9 +49,9 @@ where
         points.for_each(|(points_time, point_chunk)| {
             let imus_before_points = imus
                 .by_ref()
-                .take_while(|(imu_time, _)| imu_time < &points_time);
+                .take_while(|imu_measured| imu_measured.timestamp < points_time);
             self.extend(imus_before_points);
-            self.extend_point_chunk(points_time, point_chunk);
+            self.extend_points(points_time, point_chunk);
         });
     }
 }

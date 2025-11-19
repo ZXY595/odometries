@@ -2,7 +2,7 @@ use crate::{
     algorithm::lio,
     eskf::state::{common::Vector3State, macro_export::*},
 };
-use nalgebra::{DimNameSum, RealField, Scalar};
+use nalgebra::{RealField, Scalar};
 use odometries_macros::{KFState, VectorAddAssign};
 
 #[derive(KFState, VectorAddAssign)]

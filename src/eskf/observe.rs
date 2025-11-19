@@ -7,8 +7,7 @@ use std::{
 
 pub use model::ObserveModel;
 use nalgebra::{
-    ClosedMulAssign, DefaultAllocator, Dim, DimAdd, DimMin, DimName, OVector, U1,
-    allocator::Allocator,
+    ClosedMulAssign, DefaultAllocator, Dim, DimAdd, DimMin, OVector, U1, allocator::Allocator,
 };
 use num_traits::Zero;
 
@@ -32,10 +31,9 @@ where
     M: ObserveModel<S, Super, D>,
     DefaultAllocator: Allocator<D>,
 {
-    /// The observed measurement.
+    /// The measurement vector
     pub measurement: OVector<S::Element, D>,
-    /// The measurement function, also known as the observation model or jacobian matrix,
-    /// which map state to measurement frame
+    /// The measurement matrix, which map state to measurement frame
     pub model: M,
     /// The measurement noise, larger `noise` means more uncertain.
     pub noise: OVector<S::Element, D>,
@@ -81,7 +79,9 @@ where
         + Allocator<D, S::SensiDim>
         + Allocator<S::SensiDim, D>
         + Allocator<Super::Dim, D>
-        + Allocator<D, Super::Dim>,
+        + Allocator<D, Super::Dim>
+        + Allocator<Super::Dim, S::SensiDim>
+        + Allocator<S::SensiDim, Super::Dim>,
 {
     fn observe(
         &mut self,
@@ -92,22 +92,18 @@ where
             ..
         }: Observation<S, Super, D, M>,
     ) {
-        let pht = model.tr_mul(S::sensitivity_to_super(&self.cov));
+        let cross_cov = model.tr_mul(S::sensitivity_to_super(&self.cov));
 
-        let mut hpht = model
-            .mul(pht.rows_generic(0, S::SensiDim::name()))
-            .into_owned();
-        hpht.view_diagonal_mut().add_assign(noise);
-        let hpht_r = hpht;
+        let innovation_cov = model
+            .mul(S::sensitivity_from_super(&cross_cov))
+            .into_owned()
+            .diagonal_add(noise);
 
-        let hpht_r_inv = hpht_r.cholesky_inverse_with_substitute();
-
-        let kalman_gain = pht * hpht_r_inv;
+        let kalman_gain = cross_cov * innovation_cov.cholesky_inverse_with_substitute();
 
         self.state += &kalman_gain * measurement;
 
-        let hp = model.mul(S::sensitivity_from_super(&self.cov));
-
-        *self.cov = self.cov.deref() - kalman_gain * hp;
+        *self.cov =
+            self.cov.deref() - kalman_gain * model.mul(S::sensitivity_from_super(&self.cov));
     }
 }

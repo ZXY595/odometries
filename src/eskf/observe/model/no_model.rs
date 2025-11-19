@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-/// A observation model that does not apply any transformation to the observation.
+/// A observation model that does not apply any transform to the observation.
 pub struct NoModel;
 
 impl<S, Super: KFState> ObserveModel<S, Super, S::SensiDim> for NoModel
@@ -22,6 +22,7 @@ where
     fn new_with_dim(_: S::SensiDim) -> Self {
         Self
     }
+
     #[inline(always)]
     fn mul<D2: Dim>(
         &self,

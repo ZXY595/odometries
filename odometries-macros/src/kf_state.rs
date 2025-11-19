@@ -79,19 +79,18 @@ impl ToTokens for Input {
 
             }
         });
-        let sub_state_impl = quote! {
-            impl #impl_generics SubStateOf<Self> for #struct_ty
-            #where_clause
-            {
-                type Offset = nalgebra::U0;
-                type EndOffset = Self::Dim;
-            }
-        };
+        // let sub_state_impl = quote! {
+        //     impl #impl_generics SubStateOf<Self> for #struct_ty
+        //     #where_clause
+        //     {
+        //         type Offset = nalgebra::U0;
+        //     }
+        // };
 
         tokens.extend(quote! {
             #(#sub_states_impls)*
             #kf_state_impl
-            #sub_state_impl
+            // #sub_state_impl
         });
     }
 }

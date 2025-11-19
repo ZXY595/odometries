@@ -1,9 +1,7 @@
 use std::marker::PhantomData;
 
-use crate::eskf::Covariance;
-
 use crate::AnyStorageMatrix;
-use nalgebra::{DefaultAllocator, DimName, Matrix, Storage, allocator::Allocator};
+use nalgebra::{DefaultAllocator, Dim, DimName, allocator::Allocator};
 
 use super::{KFState, SubStateOf};
 
@@ -11,17 +9,17 @@ use super::{KFState, SubStateOf};
 pub trait SensitiveTo<Super: KFState>: SubStateOf<Super> {
     type SensiDim: DimName;
 
-    fn sensitivity_to_super(
-        cov: &Covariance<Super>,
-    ) -> AnyStorageMatrix!(Super::Element, Super::Dim, Self::SensiDim)
+    fn sensitivity_to_super<D: Dim>(
+        s: &AnyStorageMatrix!(Super::Element, D, Super::Dim),
+    ) -> AnyStorageMatrix!(Super::Element, D, Self::SensiDim)
     where
-        DefaultAllocator: Allocator<Super::Dim, Super::Dim>;
+        DefaultAllocator: Allocator<D, Self::SensiDim>;
 
-    fn sensitivity_from_super(
-        cov: &Covariance<Super>,
-    ) -> AnyStorageMatrix!(Super::Element, Self::SensiDim, Super::Dim)
+    fn sensitivity_from_super<D: Dim>(
+        s: &AnyStorageMatrix!(Super::Element, Super::Dim, D),
+    ) -> AnyStorageMatrix!(Super::Element, Self::SensiDim, D)
     where
-        DefaultAllocator: Allocator<Super::Dim, Super::Dim>;
+        DefaultAllocator: Allocator<Self::SensiDim, D>;
 }
 
 pub(crate) type SensitivityDim<S, Super> = <S as SensitiveTo<Super>>::SensiDim;
@@ -46,36 +44,25 @@ where
     Super: KFState,
 {
     type Offset = S::Offset;
-    type EndOffset = S::EndOffset;
 }
 
-impl<S, Super> SensitiveTo<Super> for UnbiasedState<S>
+impl<S, Super: KFState> SensitiveTo<Super> for UnbiasedState<S>
 where
     S: SubStateOf<Super> + Unbiased,
-    Super: SubStateOf<Super>,
-    DefaultAllocator: Allocator<Super::Dim, Super::Dim>,
 {
     type SensiDim = S::Dim;
 
-    fn sensitivity_to_super(
-        cov: &Covariance<Super>,
-    ) -> Matrix<
-        Super::Element,
-        Super::Dim,
-        Self::SensiDim,
-        impl Storage<Super::Element, Super::Dim, Self::SensiDim>,
-    > {
-        cov.sensitivity::<Self, Super>()
+    #[inline(always)]
+    fn sensitivity_to_super<D: Dim>(
+        s: &AnyStorageMatrix!(Super::Element, D, Super::Dim),
+    ) -> AnyStorageMatrix!(Super::Element, D, Self::SensiDim) {
+        s.columns_generic(S::Offset::DIM, Self::SensiDim::name())
     }
 
-    fn sensitivity_from_super(
-        cov: &Covariance<Super>,
-    ) -> Matrix<
-        Super::Element,
-        Self::SensiDim,
-        Super::Dim,
-        impl Storage<Super::Element, Self::SensiDim, Super::Dim>,
-    > {
-        cov.sensitivity::<Super, Self>()
+    #[inline(always)]
+    fn sensitivity_from_super<D: Dim>(
+        s: &AnyStorageMatrix!(Super::Element, Super::Dim, D),
+    ) -> AnyStorageMatrix!(Super::Element, Self::SensiDim, D) {
+        s.rows_generic(S::Offset::DIM, Self::SensiDim::name())
     }
 }

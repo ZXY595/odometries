@@ -16,6 +16,7 @@ where
     S: SensitiveTo<Super>,
 {
     fn new_with_dim(dim: D) -> Self;
+
     fn mul<D2: Dim>(
         &self,
         rhs: AnyStorageMatrix!(Super::Element, S::SensiDim, D2),
