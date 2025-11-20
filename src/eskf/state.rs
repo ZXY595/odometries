@@ -1,9 +1,9 @@
 use nalgebra::{DimName, DimNameSum, Scalar};
 
 pub mod common;
-pub mod sensitivity;
+pub mod correlation;
 pub mod macro_export {
-    pub use super::sensitivity::Unbiased;
+    pub use super::correlation::Unbiased;
     pub use super::{KFState, SubStateEndOffset, SubStateOf, SubStateOffset};
     pub use nalgebra::{DimName, DimNameSum};
 }

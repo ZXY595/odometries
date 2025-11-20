@@ -7,7 +7,7 @@ use crate::{
 use super::{
     StateDim,
     macro_export::*,
-    sensitivity::{SensitiveTo, UnbiasedState},
+    correlation::{CorrelateTo, UnbiasedState},
 };
 use std::{
     marker::PhantomData,
@@ -22,35 +22,6 @@ use odometries_macros::{KFState, Unbiased, VectorAddAssign};
 
 #[derive(Debug)]
 pub struct MarkedState<S, M>(pub S, PhantomData<M>);
-
-impl<S, M> MarkedState<S, M> {
-    pub fn new(state: S) -> Self {
-        MarkedState(state, PhantomData)
-    }
-    pub fn map_state_marker<N>(self) -> MarkedState<S, N> {
-        MarkedState(self.0, PhantomData)
-    }
-}
-
-impl<S: Default, M> Default for MarkedState<S, M> {
-    fn default() -> Self {
-        Self(S::default(), PhantomData)
-    }
-}
-
-impl<S, M> Deref for MarkedState<S, M> {
-    type Target = S;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<S, M> DerefMut for MarkedState<S, M> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
 
 pub type Vector3State<T, S> = MarkedState<Vector3<T>, S>;
 pub type IsometryState<T, F, S> = MarkedState<IsometryFramed<T, F>, S>;
@@ -149,7 +120,7 @@ impl<T: Scalar> AccState<T> {
     }
 }
 
-impl<Super> SensitiveTo<Super> for AccWithBiasState<Super::Element>
+impl<Super> CorrelateTo<Super> for AccWithBiasState<Super::Element>
 where
     Super: KFState<Element: Scalar + ClosedAddAssign>,
     Self: SubStateOf<Super, Element = Super::Element>,
@@ -159,24 +130,63 @@ where
     type SensiDim = StateDim<AccState<Super::Element>>;
 
     #[inline]
-    fn sensitivity_to_super<D: Dim>(
+    fn correlate_to<D: Dim>(
         s: &AnyStorageMatrix!(Super::Element, D, Super::Dim),
     ) -> AnyStorageMatrix!(Super::Element, D, Self::SensiDim)
     where
         DefaultAllocator: Allocator<D, Self::SensiDim>,
     {
-        UnbiasedState::<AccState<Super::Element>>::sensitivity_to_super(s)
-            + UnbiasedState::<BiasState<Super::Element>>::sensitivity_to_super(s)
+        UnbiasedState::<AccState<Super::Element>>::correlate_to(s)
+            + UnbiasedState::<BiasState<Super::Element>>::correlate_to(s)
     }
 
     #[inline]
-    fn sensitivity_from_super<D: Dim>(
+    fn correlate_from<D: Dim>(
         s: &AnyStorageMatrix!(Super::Element, Super::Dim, D),
     ) -> AnyStorageMatrix!(Super::Element, Self::SensiDim, D)
     where
         DefaultAllocator: Allocator<Self::SensiDim, D>,
     {
-        UnbiasedState::<AccState<Super::Element>>::sensitivity_from_super(s)
-            + UnbiasedState::<BiasState<Super::Element>>::sensitivity_from_super(s)
+        UnbiasedState::<AccState<Super::Element>>::correlate_from(s)
+            + UnbiasedState::<BiasState<Super::Element>>::correlate_from(s)
+    }
+}
+
+impl<S, M> MarkedState<S, M> {
+    #[inline]
+    pub fn new(state: S) -> Self {
+        MarkedState(state, PhantomData)
+    }
+    #[inline]
+    pub fn map_state_marker<N>(self) -> MarkedState<S, N> {
+        MarkedState(self.0, PhantomData)
+    }
+}
+
+impl<S: Default, M> Default for MarkedState<S, M> {
+    #[inline]
+    fn default() -> Self {
+        Self(S::default(), PhantomData)
+    }
+}
+
+impl<S, M> Deref for MarkedState<S, M> {
+    type Target = S;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<S, M> DerefMut for MarkedState<S, M> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<S: Clone, M> Clone for MarkedState<S, M> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self(self.0.clone(), PhantomData)
     }
 }

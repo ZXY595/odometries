@@ -16,7 +16,7 @@ use crate::{
         observe::model::{DefaultModel, NoModel},
         state::{
             KFState,
-            sensitivity::{SensitiveTo, SensitivityDim, UnbiasedState},
+            correlation::{CorrelateTo, SensitivityDim, UnbiasedState},
         },
     },
     utils::{InverseWithSubstitute, Substitutive, ViewDiagonalMut},
@@ -27,7 +27,7 @@ use super::{Eskf, StateObserver};
 /// The most generic eskf observation.
 pub struct Observation<S, Super: KFState, D: Dim, M = DefaultModel<S, Super, D>>
 where
-    S: SensitiveTo<Super>,
+    S: CorrelateTo<Super>,
     M: ObserveModel<S, Super, D>,
     DefaultAllocator: Allocator<D>,
 {
@@ -47,7 +47,7 @@ pub type UnbiasedObservation<S, Super, D> = Observation<UnbiasedState<S>, Super,
 
 impl<S, Super: KFState, D: Dim, M> Observation<S, Super, D, M>
 where
-    S: SensitiveTo<Super, Element: Zero>,
+    S: CorrelateTo<Super, Element: Zero>,
     M: ObserveModel<S, Super, D>,
     DefaultAllocator: Allocator<D>,
 {
@@ -68,7 +68,7 @@ impl<S, Super, D: Dim, M> StateObserver<Observation<S, Super, D, M>> for Eskf<Su
 where
     Super: KFState<Element: Substitutive + ClosedMulAssign>
         + AddAssign<OVector<Super::Element, Super::Dim>>,
-    S: SensitiveTo<Super, Element = Super::Element>,
+    S: CorrelateTo<Super, Element = Super::Element>,
     M: ObserveModel<S, Super, D>,
     // for diagonal view
     D: DimMin<D, Output = D> + DimAdd<U1>,
@@ -92,10 +92,10 @@ where
             ..
         }: Observation<S, Super, D, M>,
     ) {
-        let cross_cov = model.tr_mul(S::sensitivity_to_super(&self.cov));
+        let cross_cov = model.tr_mul(S::correlate_to(&self.cov));
 
         let innovation_cov = model
-            .mul(S::sensitivity_from_super(&cross_cov))
+            .mul(S::correlate_from(&cross_cov))
             .into_owned()
             .diagonal_add(noise);
 
@@ -104,6 +104,6 @@ where
         self.state += &kalman_gain * measurement;
 
         *self.cov =
-            self.cov.deref() - kalman_gain * model.mul(S::sensitivity_from_super(&self.cov));
+            self.cov.deref() - kalman_gain * model.mul(S::correlate_from(&self.cov));
     }
 }

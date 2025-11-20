@@ -1,9 +1,10 @@
+mod init;
 use std::ops::{Deref, DerefMut};
 
 use nalgebra::{RealField, Scalar, stack};
 
 use crate::{
-    algorithm::lio::{ImuInit, state::State},
+    algorithm::lio::state::State,
     eskf::{
         StateFilter,
         observe::NoModelObservation,
@@ -12,10 +13,10 @@ use crate::{
     utils::ToRadians,
 };
 
-pub type ImuObserved<T> = NoModelObservation<AccWithBiasState<T>, State<T>>;
-
 use super::LIO;
+pub use init::ImuInit;
 
+pub type ImuObserved<T> = NoModelObservation<AccWithBiasState<T>, State<T>>;
 pub type ImuMeasured<T> = AccState<T>;
 
 #[derive(Debug)]
@@ -37,7 +38,7 @@ where
             bias: state_acc_bias,
         } = &self.eskf.state.acc_with_bias;
 
-        let linear_measured_acc = linear_acc * self.gravity_norm_factor.clone()
+        let linear_measured_acc = linear_acc * self.gravity_factor.clone()
             - state_acc.linear.deref()
             - state_acc_bias.linear.deref();
 
@@ -51,7 +52,7 @@ where
         #[expect(clippy::toplevel_ref_arg)]
         let noise = stack![noise.linear; noise.angular];
 
-        ImuObserved::new_no_model(dbg!(measurement), noise)
+        ImuObserved::new_no_model(measurement, noise)
     }
 }
 
@@ -62,9 +63,9 @@ impl<T: Scalar> ImuMeasuredStamped<T> {
             measured: acc_state,
         }
     }
-    pub fn new(timesstamp: T, acc_state: ImuMeasured<T>) -> Self {
+    pub fn new(timestamp: T, acc_state: ImuMeasured<T>) -> Self {
         Self {
-            timestamp: timesstamp,
+            timestamp,
             measured: acc_state,
         }
     }
@@ -81,40 +82,6 @@ impl<T: Scalar> Deref for ImuMeasuredStamped<T> {
 impl<T: Scalar> DerefMut for ImuMeasuredStamped<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.measured
-    }
-}
-
-impl<T> FromIterator<ImuMeasuredStamped<T>> for Option<ImuInit<T>>
-where
-    T: RealField + Default,
-{
-    fn from_iter<I>(iter: I) -> Self
-    where
-        I: IntoIterator<Item = ImuMeasuredStamped<T>>,
-    {
-        let mut iter = iter.into_iter().enumerate();
-
-        let (_, first) = iter.next()?;
-        let ImuMeasuredStamped {
-            timestamp,
-            measured: acc_mean,
-        } = iter.fold(first, |mut mean_acc, (i, current_acc)| {
-            let n: T = nalgebra::convert(i as f64);
-            mean_acc.measured.linear +=
-                (current_acc.linear.deref() - mean_acc.linear.deref()) / n.clone();
-            mean_acc.measured.angular +=
-                (current_acc.angular.deref() - mean_acc.angular.deref()) / n;
-            mean_acc
-        });
-
-        let linear_acc_norm = acc_mean.linear.norm();
-
-        Some(ImuInit {
-            linear_acc_norm,
-            linear_acc_mean: acc_mean.linear,
-            angular_acc_bias: acc_mean.angular.map_state_marker(),
-            timestamp_init: timestamp,
-        })
     }
 }
 

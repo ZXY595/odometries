@@ -6,14 +6,14 @@ use nalgebra::{DefaultAllocator, Dim, allocator::Allocator};
 
 use crate::AnyStorageMatrix;
 
-use crate::eskf::state::{KFState, sensitivity::SensitiveTo};
+use crate::eskf::state::{KFState, correlation::CorrelateTo};
 
 pub use default::DefaultModel;
 pub use no_model::NoModel;
 
 pub trait ObserveModel<S, Super: KFState, D: Dim>
 where
-    S: SensitiveTo<Super>,
+    S: CorrelateTo<Super>,
 {
     fn new_with_dim(dim: D) -> Self;
 

@@ -1,7 +1,7 @@
 mod imu;
 mod points;
 
-pub use imu::{ImuMeasured, ImuMeasuredStamped};
+pub use imu::{ImuInit, ImuMeasured, ImuMeasuredStamped};
 use nalgebra::{RealField, Scalar};
 pub use points::{LidarPoint, PointsStamped};
 use simba::scalar::SupersetOf;
@@ -35,23 +35,34 @@ impl<T> LIO<T>
 where
     T: RealField + ToRadians + Default,
 {
+    pub fn extend_point_cloud_with_imu<'a, P>(
+        &mut self,
+        imus: impl IntoIterator<Item = ImuMeasuredStamped<T>>,
+        (timestamp_end, points): PointsStamped<'a, T, P>,
+    ) where
+        P: IntoIterator<Item: LidarPoint<T>, IntoIter: Clone> + 'a,
+    {
+        self.extend(imus);
+        self.extend_points(timestamp_end, points);
+    }
+
     pub fn extend_measurements<'a, P>(
         &mut self,
-        points: impl IntoIterator<Item = PointsStamped<'a, T, P>>,
+        point_clouds: impl IntoIterator<Item = PointsStamped<'a, T, P>>,
         imus: impl IntoIterator<Item = ImuMeasuredStamped<T>>,
     ) where
         P: IntoIterator<Item: LidarPoint<T>, IntoIter: Clone> + 'a,
     {
-        let points = points.into_iter();
+        let point_clouds = point_clouds.into_iter();
         let mut imus = imus.into_iter();
 
         // TODO: could this be optimized by using `rayon`?
-        points.for_each(|(points_time, point_chunk)| {
+        point_clouds.for_each(|(points_time, points)| {
             let imus_before_points = imus
                 .by_ref()
                 .take_while(|imu_measured| imu_measured.timestamp < points_time);
             self.extend(imus_before_points);
-            self.extend_points(points_time, point_chunk);
+            self.extend_points(points_time, points);
         });
     }
 }

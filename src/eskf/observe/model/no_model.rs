@@ -7,7 +7,7 @@ use crate::{
     AnyStorageMatrix,
     eskf::{
         observe::NoModelObservation,
-        state::{KFState, sensitivity::SensitiveTo},
+        state::{KFState, correlation::CorrelateTo},
     },
 };
 
@@ -16,7 +16,7 @@ pub struct NoModel;
 
 impl<S, Super: KFState> ObserveModel<S, Super, S::SensiDim> for NoModel
 where
-    S: SensitiveTo<Super>,
+    S: CorrelateTo<Super>,
 {
     #[inline(always)]
     fn new_with_dim(_: S::SensiDim) -> Self {
@@ -49,7 +49,7 @@ where
 impl<S, Super> NoModelObservation<S, Super>
 where
     Super: KFState<Element: RealField>,
-    S: SensitiveTo<Super, Element = Super::Element>,
+    S: CorrelateTo<Super, Element = Super::Element>,
     DefaultAllocator: Allocator<S::SensiDim>,
 {
     pub fn new_no_model(

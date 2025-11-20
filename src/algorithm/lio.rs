@@ -12,7 +12,7 @@ use state::State;
 use crate::{
     eskf::{
         Eskf,
-        state::common::{AngularAccBiasState, GravityState, LinearAccState},
+        state::common::{GravityState, LinearAccState},
     },
     frame::{IsometryFramed, frames},
     utils::ToRadians,
@@ -25,7 +25,7 @@ pub use body_point::ProcessCovConfig as BodyPointProcessCovConfig;
 pub use measurement::MeasureNoiseConfig;
 pub use predict::ProcessCovConfig as StateProcessCovConfig;
 
-pub use measurement::{ImuMeasured, ImuMeasuredStamped};
+pub use measurement::{ImuInit, ImuMeasured, ImuMeasuredStamped};
 
 /// # Input
 /// ```text
@@ -52,19 +52,7 @@ where
     body_point_process_cov: BodyPointProcessCovConfig<T>,
     extrinsics: IsometryFramed<T, fn(frames::Body) -> frames::Imu>,
     measure_noise: MeasureNoiseConfig<T>,
-    gravity_norm_factor: T,
-}
-
-/// The imu initialization, which can be created by
-/// [`impl Iterator<Item = ImuMeasured<T>>::collect`](std::iter::Iterator::collect).
-///
-/// Can be used to create odometries that need imu observation.
-#[derive(Debug)]
-pub struct ImuInit<T> {
-    linear_acc_norm: T,
-    linear_acc_mean: LinearAccState<T>,
-    angular_acc_bias: AngularAccBiasState<T>,
-    timestamp_init: T,
+    gravity_factor: T,
 }
 
 pub struct Config<T: Scalar> {
@@ -85,7 +73,7 @@ where
     T: RealField + ToRadians + Default,
 {
     pub fn new_lio(self, lio_config: Config<T>) -> LIO<T> {
-        LIO::new(self, lio_config)
+        LIO::new(lio_config, self)
     }
 }
 
@@ -93,13 +81,15 @@ impl<T> LIO<T>
 where
     T: RealField + ToRadians + Default,
 {
-    pub fn new(imu_init: ImuInit<T>, config: Config<T>) -> Self {
+    pub fn new(config: Config<T>, imu_init: ImuInit<T>) -> Self {
         let mut eskf = Eskf::new(config.process_cov.state.into(), imu_init.timestamp_init);
 
-        let gravity_norm_factor = config.gravity / imu_init.linear_acc_norm.clone();
+        let gravity_factor = config.gravity / imu_init.linear_acc_norm.clone();
 
-        eskf.gravity =
-            GravityState::new(-imu_init.linear_acc_mean.deref() * gravity_norm_factor.clone());
+        let gravity = imu_init.linear_acc_mean.deref() * gravity_factor.clone();
+
+        eskf.acc_with_bias.acc.linear = LinearAccState::new(gravity.clone());
+        eskf.gravity = GravityState::new(-gravity);
         eskf.acc_with_bias.bias.angular = imu_init.angular_acc_bias;
 
         Self {
@@ -107,7 +97,7 @@ where
             map: VoxelMap::new(config.voxel_map),
             body_point_process_cov: config.process_cov.body_point,
             extrinsics: config.extrinsics,
-            gravity_norm_factor,
+            gravity_factor,
             measure_noise: config.measure_noise,
         }
     }

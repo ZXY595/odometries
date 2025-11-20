@@ -7,7 +7,7 @@ use crate::{
     AnyStorageMatrix,
     eskf::{
         observe::Observation,
-        state::{KFState, sensitivity::SensitiveTo},
+        state::{KFState, correlation::CorrelateTo},
     },
 };
 use itertools::MultiUnzip;
@@ -22,7 +22,7 @@ use num_traits::{One, Zero};
 /// The default observation model, which can be [`collect`](std::iter::Iterator::collect) from [`Iterator`].
 pub struct DefaultModel<S, Super: KFState, D: Dim>
 where
-    S: SensitiveTo<Super>,
+    S: CorrelateTo<Super>,
     DefaultAllocator: Allocator<S::SensiDim, D>,
 {
     /// Make dimension `D` be the last dimension, this is useful for matrix [`Extend`](std::iter::Extend) operations.
@@ -32,7 +32,7 @@ where
 impl<S, Super: KFState, D: Dim> ObserveModel<S, Super, D> for DefaultModel<S, Super, D>
 where
     Super::Element: Scalar + Zero + One + ClosedMulAssign + ClosedAddAssign,
-    S: SensitiveTo<Super, Element = Super::Element>,
+    S: CorrelateTo<Super, Element = Super::Element>,
     DefaultAllocator: Allocator<D, S::SensiDim> + Allocator<S::SensiDim, D>,
 {
     #[inline(always)]
@@ -66,7 +66,7 @@ where
 
 impl<S, Super: KFState, D: Dim> Deref for DefaultModel<S, Super, D>
 where
-    S: SensitiveTo<Super>,
+    S: CorrelateTo<Super>,
     DefaultAllocator: Allocator<S::SensiDim, D>,
 {
     type Target = OMatrix<S::Element, S::SensiDim, D>;
@@ -78,7 +78,7 @@ where
 
 impl<S, Super: KFState, D: Dim> DerefMut for DefaultModel<S, Super, D>
 where
-    S: SensitiveTo<Super>,
+    S: CorrelateTo<Super>,
     DefaultAllocator: Allocator<S::SensiDim, D>,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
@@ -89,7 +89,7 @@ where
 impl<S, Super, D: Dim> Observation<S, Super, D>
 where
     Super: KFState<Element: RealField>,
-    S: SensitiveTo<Super, Element = Super::Element>,
+    S: CorrelateTo<Super, Element = Super::Element>,
     DefaultAllocator: Allocator<D> + Allocator<D, S::SensiDim> + Allocator<S::SensiDim, D>,
 {
     pub fn new(
@@ -112,7 +112,7 @@ impl<S, Super: KFState> FromIterator<ObservationIterItem<S::Element, S::SensiDim
     for Observation<S, Super, Dyn>
 where
     Super: KFState<Element: RealField>,
-    S: SensitiveTo<Super, Element = Super::Element>,
+    S: CorrelateTo<Super, Element = Super::Element>,
     DefaultAllocator: Allocator<S::SensiDim>,
 {
     fn from_iter<I>(iter: I) -> Self

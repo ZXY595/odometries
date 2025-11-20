@@ -60,6 +60,7 @@ where
     S: KFState,
     DefaultAllocator: Allocator<S::Dim, S::Dim>,
 {
+    #[inline]
     pub fn sensitivity_mut<Src, Dst>(
         &mut self,
     ) -> SquareMatrixViewMut<'_, S::Element, Dst::Dim, Src::Dim, S::Dim>
@@ -73,6 +74,7 @@ where
         )
     }
 
+    #[inline]
     pub fn sensitivity<Src, Dst>(
         &self,
     ) -> SquareMatrixView<'_, S::Element, Dst::Dim, Src::Dim, S::Dim>
@@ -86,6 +88,7 @@ where
         )
     }
 
+    #[inline]
     pub fn sub_covariance<Sub>(
         &self,
     ) -> SquareMatrixView<'_, S::Element, Sub::Dim, Sub::Dim, S::Dim>
@@ -95,6 +98,7 @@ where
         self.sensitivity::<Sub, Sub>()
     }
 
+    #[inline]
     pub fn sub_covariance_mut<Sub>(
         &mut self,
     ) -> SquareMatrixViewMut<'_, S::Element, Sub::Dim, Sub::Dim, S::Dim>
@@ -110,6 +114,7 @@ where
     S: KFState<Element: Default>,
     DefaultAllocator: Allocator<S::Dim, S::Dim, Buffer<S::Element>: Default>,
 {
+    #[inline]
     fn default() -> Self {
         Self(Default::default())
     }
