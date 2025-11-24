@@ -72,7 +72,7 @@ pub enum PlaneInitError {
 
 impl<T> UncertainPlane<T>
 where
-    T: RealField + Default,
+    T: RealField,
 {
     pub fn from_uncertain_world_points(
         points: &[UncertainWorldPoint<T>],

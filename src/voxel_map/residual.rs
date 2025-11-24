@@ -1,12 +1,13 @@
 use std::cmp::Ordering;
 use std::ops::Deref;
 
-use nalgebra::{Point3, RealField, Scalar, Vector3};
+use nalgebra::{ComplexField, RealField, Scalar, Vector3};
 
-use crate::utils::ToVoxelIndex;
-use crate::voxel_map::uncertain::UncertainWorldPoint;
+use crate::voxel_map::index::{ToVoxelIndex, VoxelCoord};
+use crate::voxel_map::{index::ToVoxelCoord, uncertain::UncertainWorldPoint};
 
 use super::VoxelMap;
+use super::oct_tree::OctTreeRoot;
 
 pub struct Residual<'a, T: Scalar> {
     pub plane_normal: &'a Vector3<T>,
@@ -16,24 +17,64 @@ pub struct Residual<'a, T: Scalar> {
     sigma_sqrt: T,
 }
 
+pub struct NoValidResidual<'a, T: ComplexField> {
+    /// the root of the oct tree where the residual of the given point was not found
+    voxel_root: &'a OctTreeRoot<T>,
+    voxel_coord: VoxelCoord<T>,
+}
+
 impl<T> VoxelMap<T>
 where
-    T: RealField + Default,
-    Point3<T>: ToVoxelIndex<T>,
+    T: RealField,
 {
-    pub fn get_residual(&self, point: UncertainWorldPoint<T>) -> Option<Residual<'_, T>> {
-        let index = point.to_voxel_index(self.config.voxel_size.clone());
-        let root = self.roots.get(&index)?;
+    pub fn get_residual(
+        &self,
+        point: &UncertainWorldPoint<T>,
+    ) -> Result<Residual<'_, T>, Option<NoValidResidual<'_, T>>> {
+        let voxel_coord = point.as_voxel_coord(self.config.voxel_size.clone());
+        self.get_residual_by_coord(voxel_coord, point)
+    }
+
+    pub fn get_residual_or_nearest(
+        &self,
+        point: &UncertainWorldPoint<T>,
+    ) -> Option<Residual<'_, T>> {
+        self.get_residual(point)
+            .or_else(|err| {
+                let NoValidResidual {
+                    voxel_root,
+                    voxel_coord,
+                } = err.ok_or(())?;
+
+                let nearest_coord = voxel_root.nearest_coord(point, voxel_coord);
+
+                self.get_residual_by_coord(nearest_coord, point)
+                    .map_err(drop)
+            })
+            .ok()
+    }
+
+    fn get_residual_by_coord(
+        &self,
+        voxel_coord: VoxelCoord<T>,
+        point: &UncertainWorldPoint<T>,
+    ) -> Result<Residual<'_, T>, Option<NoValidResidual<'_, T>>> {
+        let index = voxel_coord.to_voxel_index();
+        let voxel_root = self.roots.get(&index).ok_or(None)?;
         let radius_factor: T = nalgebra::convert(3.0);
+
         // TODO: could be optimized by using `rayon`?
-        root.iter_planes()
+        voxel_root
+            .iter_planes()
             .map(|plane| {
                 let normal = &plane.normal;
                 let distance_to_plane =
                     normal.dot(&point.coords) - normal.dot(&plane.center.coords);
-                let distance_to_plane_squared =
-                    distance_to_plane.clone() * distance_to_plane.clone();
-                (plane, distance_to_plane, distance_to_plane_squared)
+                (
+                    plane,
+                    distance_to_plane.clone(),
+                    distance_to_plane.clone() * distance_to_plane,
+                )
             })
             .filter(|(plane, _, distance_to_plane_squared)| {
                 let distance_to_center_squared = (point.deref() - &plane.center).norm_squared();
@@ -42,7 +83,7 @@ where
                 range_distance <= radius_factor.clone() * plane.radius.clone()
             })
             .map(|(plane, distance_to_plane, distance_to_plane_squared)| {
-                let sigma = plane.sigma_to(&point);
+                let sigma = plane.sigma_to(point);
                 Residual {
                     plane_normal: &plane.normal,
                     distance_to_plane,
@@ -58,8 +99,13 @@ where
             .max_by(|a, b| {
                 a.probability()
                     .partial_cmp(&b.probability())
+                    // TODO: this might be bad
                     .unwrap_or(Ordering::Equal)
             })
+            .ok_or(Some(NoValidResidual {
+                voxel_root,
+                voxel_coord,
+            }))
     }
 }
 
@@ -67,7 +113,7 @@ impl<'a, T: RealField> Residual<'a, T> {
     fn probability(&self) -> T {
         T::one()
             / (self.sigma_sqrt.clone()
-                * (nalgebra::convert::<_, T>(-0.5) * self.distance_to_plane_squared.clone()
+                * (self.distance_to_plane_squared.clone() * nalgebra::convert(-0.5)
                     / self.sigma.clone()))
     }
 }

@@ -1,11 +1,11 @@
 mod macros;
 use nalgebra::{
     Cholesky, ClosedAddAssign, ComplexField, DefaultAllocator, Dim, DimAdd, DimMin, DimMinimum,
-    DimSum, Matrix, Matrix3, OMatrix, Point3, RawStorageMut, Scalar, U1, Vector3, VectorViewMut,
+    DimSum, Matrix, Matrix3, OMatrix, RawStorageMut, Scalar, U1, Vector3, VectorViewMut,
     ViewStorageMut, allocator::Allocator,
 };
-use num_traits::float::FloatCore;
-use std::{hash::Hash, iter::Sum};
+use num_traits::{Zero, float::FloatCore};
+use std::iter::Sum;
 
 use crate::AnyStorageVector;
 
@@ -111,13 +111,12 @@ pub trait ToRadians {
 }
 
 impl<T: FloatCore> ToRadians for T {
-    #[inline]
+    #[inline(always)]
     fn to_radians(self) -> Self {
         <T as FloatCore>::to_radians(self)
     }
 }
 
-#[derive(Default)]
 pub struct VectorSquareSum<T: Scalar> {
     count: usize,
     sum: Vector3<T>,
@@ -140,9 +139,22 @@ where
     }
 }
 
+impl<T> Default for VectorSquareSum<T>
+where
+    T: Scalar + Zero,
+{
+    fn default() -> Self {
+        Self {
+            count: 0,
+            sum: Vector3::zeros(),
+            square_sum: Matrix3::zeros(),
+        }
+    }
+}
+
 impl<'a, T> Sum<&'a Vector3<T>> for VectorSquareSum<T>
 where
-    T: ComplexField + Default,
+    T: ComplexField,
 {
     fn sum<I>(iter: I) -> Self
     where
@@ -154,29 +166,6 @@ where
             acc.square_sum += current * current.transpose();
             acc
         })
-    }
-}
-
-pub trait ToVoxelIndex<S> {
-    type Index: nohash_hasher::IsEnabled + Eq + Hash;
-    fn assume_voxel_index(self) -> Self::Index;
-    fn to_voxel_index(&self, voxel_size: S) -> Self::Index;
-}
-
-impl<T: ComplexField> ToVoxelIndex<T> for Point3<T> {
-    type Index = i64;
-
-    #[inline]
-    fn assume_voxel_index(self) -> Self::Index {
-        let index = self
-            .map(|x| x.floor().to_subset_unchecked())
-            .map(|x: f64| x as i64);
-        ((index.x * 73856093) ^ (index.y * 471943) ^ (index.z * 83492791)) % 10000000
-    }
-    #[inline]
-    fn to_voxel_index(&self, voxel_size: T) -> Self::Index {
-        let index = self / voxel_size;
-        index.assume_voxel_index()
     }
 }
 

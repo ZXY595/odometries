@@ -69,7 +69,7 @@ where
         coord: &Vector3<bool>,
         point: UncertainWorldPoint<T>,
     ) -> OctTreeNode<T> {
-        let side_quarter_length = &state.side_quarter_length;
+        let side_quarter_length = &state.quarter_side_length;
         let depth = state.depth;
 
         let child_center = &state.center

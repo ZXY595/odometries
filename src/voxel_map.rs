@@ -1,23 +1,20 @@
+mod index;
 mod oct_tree;
 mod residual;
 pub mod uncertain;
 
 use std::ops::Deref;
 
-use nalgebra::{ComplexField, Point3, RealField};
+use nalgebra::{ComplexField, RealField};
 use nohash_hasher::IntMap;
 pub use residual::Residual;
 use simba::scalar::SupersetOf;
 
-use crate::{
-    utils::ToVoxelIndex,
-    voxel_map::{
-        oct_tree::OctTreeRoot,
-        uncertain::{UncertainWorldPoint, plane::PlaneConfig},
-    },
+use crate::voxel_map::{
+    index::{ToVoxelCoord, VoxelIndex},
+    oct_tree::OctTreeRoot,
+    uncertain::{UncertainWorldPoint, plane::PlaneConfig},
 };
-
-type VoxelIndex<T> = <Point3<T> as ToVoxelIndex<T>>::Index;
 
 pub struct VoxelMap<T>
 where
@@ -63,7 +60,7 @@ impl<T: SupersetOf<f64>> Default for Config<T> {
 
 impl<T> VoxelMap<T>
 where
-    T: ComplexField + Default,
+    T: ComplexField,
 {
     pub fn new(config: Config<T>) -> Self {
         Self {
@@ -75,11 +72,11 @@ where
 
 impl<T> VoxelMap<T>
 where
-    T: RealField + Default,
+    T: RealField,
 {
     pub fn insert(&mut self, point: UncertainWorldPoint<T>) {
         let voxel_size = &self.config.voxel_size;
-        let index = point.to_voxel_index(voxel_size.clone());
+        let index = point.as_voxel_index(voxel_size.clone());
         let root = self
             .roots
             .entry(index)
@@ -89,7 +86,7 @@ where
 }
 impl<T> Extend<UncertainWorldPoint<T>> for VoxelMap<T>
 where
-    T: RealField + Default,
+    T: RealField,
 {
     fn extend<I>(&mut self, iter: I)
     where

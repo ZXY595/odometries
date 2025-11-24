@@ -7,7 +7,7 @@ use crate::eskf::{
     state::{common::*, macro_export::*},
 };
 
-use nalgebra::{ComplexField, RealField, Scalar, SimdRealField};
+use nalgebra::{ComplexField, RealField, Scalar};
 
 use super::LIO;
 
@@ -40,7 +40,7 @@ struct BiasState<T: Scalar>(LinearAccBiasState<T>, AngularAccBiasState<T>);
 
 impl<T> Default for State<T>
 where
-    T: Default + SimdRealField<Element: SimdRealField>,
+    T: RealField,
 {
     fn default() -> Self {
         Self {

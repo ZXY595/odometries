@@ -7,6 +7,7 @@ use crate::{
 };
 
 use nalgebra::{IsometryMatrix3, RealField, Rotation3, SMatrix, Scalar, Translation3};
+use num_traits::Zero;
 use simba::scalar::SupersetOf;
 
 pub struct ProcessCovConfig<T> {
@@ -104,7 +105,7 @@ impl<T: SupersetOf<f64>> Default for ProcessCovConfig<T> {
 
 impl<T> From<ProcessCovConfig<T>> for Covariance<State<T>>
 where
-    T: Scalar + Default,
+    T: Scalar + Zero,
 {
     fn from(value: ProcessCovConfig<T>) -> Self {
         let mut cov = Self::default();

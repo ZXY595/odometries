@@ -81,5 +81,5 @@ fn livox_imu_to_mesurement(
 }
 
 fn livox_point_to_mesurement(&CartesianHighPoint { x, y, z, .. }: &CartesianHighPoint) -> [f64; 3] {
-    [x as f64, y as f64, z as f64].map(|x| x * 1e-3)
+    [x, y, z].map(|x| x as f64 * 1e-3)
 }

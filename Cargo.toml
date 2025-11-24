@@ -2,11 +2,10 @@
 name = "odometries"
 version = "0.1.0"
 edition.workspace = true
-authors = ["ZXY595 <3303057136@qq.com>"]
 description = "A library for tightly‑coupled error‑state Kalman filter based odometry systems"
-keywords = ["SLAM", "kalman", "navigation", "odometry", "robot", "voxelmap"]
-license = "MIT"
 repository = "https://github.com/ZXY595/odometries"
+license = "MIT"
+keywords = ["SLAM", "kalman", "navigation", "odometry", "robot", "voxelmap"]
 
 [workspace]
 resolver = "3"
@@ -22,8 +21,8 @@ odometries-macros = { path = "./odometries-macros" }
 simba = "0.9"
 
 [[example]]
-name = "mid360"
-path = "example/mid360.rs"
+name = "livox"
+path = "example/livox.rs"
 
 [[example]]
 name = "fake_imu"

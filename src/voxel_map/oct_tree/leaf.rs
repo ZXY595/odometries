@@ -31,7 +31,7 @@ impl<T: Scalar> Leaf<T> {
 
 impl<T> Leaf<T>
 where
-    T: RealField + Default,
+    T: RealField,
 {
     /// Returns
     ///

@@ -6,8 +6,8 @@ use crate::{
 
 use super::{
     StateDim,
-    macro_export::*,
     correlation::{CorrelateTo, UnbiasedState},
+    macro_export::*,
 };
 use std::{
     marker::PhantomData,
@@ -18,6 +18,7 @@ use nalgebra::{
     ClosedAddAssign, DefaultAllocator, Dim, IsometryMatrix3, RealField, Rotation3, Scalar, Storage,
     Translation3, U0, U3, U6, Vector, Vector3, allocator::Allocator,
 };
+use num_traits::Zero;
 use odometries_macros::{KFState, Unbiased, VectorAddAssign};
 
 #[derive(Debug)]
@@ -39,7 +40,7 @@ pub type LinearAccBiasState<T> = Vector3State<T, marker::AccBias>;
 pub type AngularAccState<T> = Vector3State<T, marker::AngularAcc>;
 pub type AngularAccBiasState<T> = Vector3State<T, marker::GyroBias>;
 
-#[derive(KFState, VectorAddAssign, Default)]
+#[derive(KFState, VectorAddAssign)]
 #[element(T)]
 #[vector_add_assign(predicates(ClosedAddAssign))]
 pub struct AccWithBiasState<T: Scalar> {
@@ -47,7 +48,7 @@ pub struct AccWithBiasState<T: Scalar> {
     pub bias: BiasState<T>,
 }
 
-#[derive(Debug, KFState, VectorAddAssign, Unbiased, Default)]
+#[derive(Debug, KFState, VectorAddAssign, Unbiased)]
 #[element(T)]
 #[vector_add_assign(predicates(ClosedAddAssign))]
 pub struct AccState<T: Scalar> {
@@ -56,8 +57,7 @@ pub struct AccState<T: Scalar> {
     /// Unit: rad/s
     pub angular: AngularAccState<T>,
 }
-
-#[derive(KFState, VectorAddAssign, Unbiased, Default)]
+#[derive(KFState, VectorAddAssign, Unbiased)]
 #[element(T)]
 #[vector_add_assign(predicates(ClosedAddAssign))]
 pub struct BiasState<T: Scalar> {
@@ -163,13 +163,6 @@ impl<S, M> MarkedState<S, M> {
     }
 }
 
-impl<S: Default, M> Default for MarkedState<S, M> {
-    #[inline]
-    fn default() -> Self {
-        Self(S::default(), PhantomData)
-    }
-}
-
 impl<S, M> Deref for MarkedState<S, M> {
     type Target = S;
 
@@ -188,5 +181,52 @@ impl<S: Clone, M> Clone for MarkedState<S, M> {
     #[inline]
     fn clone(&self) -> Self {
         Self(self.0.clone(), PhantomData)
+    }
+}
+
+impl<T, M> Default for Vector3State<T, M>
+where
+    T: Scalar + Zero,
+{
+    #[inline]
+    fn default() -> Self {
+        Self(Vector3::zeros(), PhantomData)
+    }
+}
+
+impl<T, F, M> Default for IsometryState<T, F, M>
+where
+    T: RealField,
+{
+    #[inline]
+    fn default() -> Self {
+        Self(Default::default(), PhantomData)
+    }
+}
+
+impl<T: Scalar + Zero> Default for AccWithBiasState<T> {
+    fn default() -> Self {
+        Self {
+            acc: Default::default(),
+            bias: Default::default(),
+        }
+    }
+}
+
+impl<T: Scalar + Zero> Default for AccState<T> {
+    fn default() -> Self {
+        Self {
+            linear: Default::default(),
+            angular: Default::default(),
+        }
+    }
+}
+
+impl<T: Scalar + Zero> Default for BiasState<T> {
+    fn default() -> Self {
+        Self {
+            linear: Default::default(),
+            angular: Default::default(),
+        }
     }
 }

@@ -8,12 +8,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct ProcessCovConfig<T> {
+pub struct ProcessCov<T> {
     pub distance: T,
     pub direction: T,
 }
 
-impl<T: SupersetOf<f64>> Default for ProcessCovConfig<T> {
+impl<T: SupersetOf<f64>> Default for ProcessCov<T> {
     fn default() -> Self {
         Self {
             distance: nalgebra::convert(0.04),
@@ -24,12 +24,11 @@ impl<T: SupersetOf<f64>> Default for ProcessCovConfig<T> {
 
 impl<T> UncertainBodyPoint<T>
 where
-    T: RealField + ToRadians + Default,
+    T: RealField + ToRadians
 {
-    pub fn from_body_point(point: BodyPoint<T>, config: ProcessCovConfig<T>) -> Self {
-        let point_coords = &point.coords;
-        let range = point_coords.norm();
-        let direction = point_coords.normalize();
+    pub fn from_body_point(point: BodyPoint<T>, process_cov: ProcessCov<T>) -> Self {
+        let range = point.coords.norm();
+        let direction = point.coords.normalize();
 
         let base1 = Vector3::new(T::one(), T::one(), {
             -(direction.x.clone() + direction.y.clone())
@@ -42,10 +41,10 @@ where
         let point_base_coords =
             direction.cross_matrix() * range * Matrix3x2::from_columns(&[base1, base2]);
 
-        let distance_cov = Matrix1::new(config.distance.powi(2));
+        let distance_cov = Matrix1::new(process_cov.distance.powi(2));
 
         let direction_cov =
-            Matrix2::from_diagonal_element(config.direction.to_radians().sin().powi(2));
+            Matrix2::from_diagonal_element(process_cov.direction.to_radians().sin().powi(2));
 
         // TODO: can we avoid init with zeros?
         let mut cov = Matrix3::zeros();

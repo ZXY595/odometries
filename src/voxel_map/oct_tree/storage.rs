@@ -11,7 +11,7 @@ use slab::Slab;
 
 /// TODO: add another storage type that implements [`Send`] and [`Sync`],
 /// for thread-safe storage to integrate with the `rayon` crate.
-pub(crate) struct TreeStorage<T: Scalar>(pub(crate) Slab<OctTreeNode<T>>);
+pub(crate) struct TreeStorage<T: Scalar>(Slab<OctTreeNode<T>>);
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct TreeID<T> {
@@ -117,16 +117,22 @@ impl<T: Scalar> TreeStorage<T> {
         debug_assert_eq!(index, 0);
         storage
     }
+
     #[must_use]
     pub fn alloc(&mut self, node: OctTreeNode<T>) -> Option<TreeID<T>> {
         let index = self.0.insert(node);
         TreeID::new_maybe_root(index)
     }
+
     /// Returns a vacant allocation,
     /// useful for inserting nodes into the tree according a exisiting node.
     pub fn vacant_alloc(&self) -> VacantAlloc<T> {
         let index = self.0.vacant_key();
         VacantAlloc(TreeID::new_maybe_root(index))
+    }
+
+    pub fn iter_nodes(&self) -> impl Iterator<Item = &OctTreeNode<T>> {
+        self.0.iter().map(|(_, node)| node)
     }
 }
 
@@ -138,6 +144,7 @@ impl<T: Scalar> VacantAlloc<T> {
         node: OctTreeNode<T>,
         f: impl FnOnce(Option<TreeID<T>>),
     ) -> impl FnOnce(&mut TreeStorage<T>) + 'static {
+        #[cfg(debug_assertions)]
         let index = self.0.clone();
         f(self.0);
         move |storage| {

@@ -27,7 +27,7 @@ pub struct ImuMeasuredStamped<T: Scalar> {
 
 impl<T> LIO<T>
 where
-    T: RealField + ToRadians + Default,
+    T: RealField + ToRadians,
 {
     fn observe_imu(&self, imu_acc: &ImuMeasured<T>) -> ImuObserved<T> {
         let linear_acc = imu_acc.linear.deref();
@@ -85,21 +85,9 @@ impl<T: Scalar> DerefMut for ImuMeasuredStamped<T> {
     }
 }
 
-impl<T> Extend<ImuMeasuredStamped<T>> for Option<ImuInit<T>>
-where
-    T: RealField + Default,
-{
-    fn extend<I>(&mut self, iter: I)
-    where
-        I: IntoIterator<Item = ImuMeasuredStamped<T>>,
-    {
-        *self = iter.into_iter().collect();
-    }
-}
-
 impl<T> Extend<ImuMeasuredStamped<T>> for LIO<T>
 where
-    T: RealField + ToRadians + Default,
+    T: RealField + ToRadians,
 {
     fn extend<I>(&mut self, iter: I)
     where

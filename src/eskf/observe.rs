@@ -103,7 +103,6 @@ where
 
         self.state += &kalman_gain * measurement;
 
-        *self.cov =
-            self.cov.deref() - kalman_gain * model.mul(S::correlate_from(&self.cov));
+        *self.cov = self.cov.deref() - kalman_gain * model.mul(S::correlate_from(&self.cov));
     }
 }

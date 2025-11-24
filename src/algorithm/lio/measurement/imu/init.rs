@@ -20,7 +20,7 @@ pub struct ImuInit<T> {
 
 impl<T> FromIterator<ImuMeasuredStamped<T>> for Option<ImuInit<T>>
 where
-    T: RealField + Default,
+    T: RealField,
 {
     fn from_iter<I>(iter: I) -> Self
     where
@@ -49,5 +49,17 @@ where
             angular_acc_bias: acc_mean.angular.map_state_marker(),
             timestamp_init: timestamp,
         })
+    }
+}
+
+impl<T> Extend<ImuMeasuredStamped<T>> for Option<ImuInit<T>>
+where
+    T: RealField,
+{
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = ImuMeasuredStamped<T>>,
+    {
+        *self = iter.into_iter().collect();
     }
 }

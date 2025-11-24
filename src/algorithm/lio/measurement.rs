@@ -15,7 +15,10 @@ pub struct MeasureNoiseConfig<T: Scalar> {
     pub lidar_point: T,
 }
 
-impl<T: Scalar + SupersetOf<f64>> Default for MeasureNoiseConfig<T> {
+impl<T> Default for MeasureNoiseConfig<T>
+where
+    T: Scalar + SupersetOf<f64>,
+{
     fn default() -> Self {
         Self {
             imu_acc: AccState::new(
@@ -33,17 +36,17 @@ impl<T: Scalar + SupersetOf<f64>> Default for MeasureNoiseConfig<T> {
 
 impl<T> LIO<T>
 where
-    T: RealField + ToRadians + Default,
+    T: RealField + ToRadians
 {
     pub fn extend_point_cloud_with_imu<'a, P>(
         &mut self,
         imus: impl IntoIterator<Item = ImuMeasuredStamped<T>>,
-        (timestamp_end, points): PointsStamped<'a, T, P>,
+        (end_timestamp, points): PointsStamped<'a, T, P>,
     ) where
         P: IntoIterator<Item: LidarPoint<T>, IntoIter: Clone> + 'a,
     {
         self.extend(imus);
-        self.extend_points(timestamp_end, points);
+        self.extend_points(end_timestamp, points);
     }
 
     pub fn extend_measurements<'a, P>(

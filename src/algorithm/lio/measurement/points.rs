@@ -59,7 +59,7 @@ impl<T: Scalar, P: LidarPoint<T>> LidarPoint<T> for (T, P) {
 
 impl<T> LIO<T>
 where
-    T: RealField + ToRadians + Default,
+    T: RealField + ToRadians,
 {
     pub fn extend_points(
         &mut self,
@@ -114,12 +114,8 @@ where
                     Framed::new(&cross_matrix_imu),
                     &self.eskf.cov,
                 );
-                let residual = self.map.get_residual(world_point)
-                // .or_else(|| {
-                //     // TODO: search for one nearest voxel in the map
-                //     todo!()
-                // })
-                ?;
+                let residual = self.map.get_residual_or_nearest(&world_point)?;
+
                 let plane_normal = residual.plane_normal;
                 let crossmatrix_rotation_t_normal =
                     cross_matrix_imu * self.eskf.pose.rotation.transpose() * plane_normal;
@@ -145,7 +141,7 @@ where
 
 impl<'a, T, P> Extend<PointsStamped<'a, T, P>> for LIO<T>
 where
-    T: RealField + ToRadians + Default,
+    T: RealField + ToRadians,
     P: IntoIterator<Item: LidarPoint<T>, IntoIter: Clone>,
 {
     fn extend<I>(&mut self, iter: I)

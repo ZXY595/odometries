@@ -19,7 +19,7 @@ use super::{UncertainBodyPoint, UncertainWorldPoint};
 
 impl<T> UncertainWorldPoint<T>
 where
-    T: RealField + Default,
+    T: RealField,
 {
     pub fn from_uncertain_body_point<S>(
         body_point: UncertainBodyPoint<T>,
@@ -57,7 +57,7 @@ where
 
     pub fn from_body_point<S>(
         point: BodyPoint<T>,
-        config: body_point::ProcessCovConfig<T>,
+        config: body_point::ProcessCov<T>,
         body_to_imu: &IsometryFramed<T, fn(frames::Body) -> frames::Imu>,
         imu_to_world: &IsometryFramed<T, fn(frames::Imu) -> frames::World>,
         body_to_world: &IsometryFramed<T, fn(frames::Body) -> frames::World>,

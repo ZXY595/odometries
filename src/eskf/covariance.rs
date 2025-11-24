@@ -5,6 +5,7 @@ use nalgebra::{
     CStride, DefaultAllocator, DimName, MatrixView, MatrixViewMut, OMatrix, RStride,
     allocator::Allocator,
 };
+use num_traits::Zero;
 
 type OwnedSquareMatrix<T, D> = OMatrix<T, D, D>;
 type SquareMatrixViewMut<'a, T, R, C, DS> =
@@ -111,11 +112,11 @@ where
 
 impl<S> Default for Covariance<S>
 where
-    S: KFState<Element: Default>,
-    DefaultAllocator: Allocator<S::Dim, S::Dim, Buffer<S::Element>: Default>,
+    S: KFState<Element: Zero>,
+    DefaultAllocator: Allocator<S::Dim, S::Dim>,
 {
     #[inline]
     fn default() -> Self {
-        Self(Default::default())
+        Self(OMatrix::zeros())
     }
 }
