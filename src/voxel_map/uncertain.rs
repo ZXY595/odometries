@@ -8,7 +8,7 @@ pub mod plane;
 pub mod world_point;
 use plane::Plane;
 
-pub type UncertainBodyPoint<T> = Uncertained<BodyPoint<T>>;
+pub type UncertainBodyPoint<'a, T> = Uncertained<&'a BodyPoint<T>>;
 pub type UncertainImuPoint<T> = Uncertained<ImuPoint<T>>;
 pub type UncertainWorldPoint<T> = Uncertained<WorldPoint<T>>;
 

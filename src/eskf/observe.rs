@@ -76,12 +76,12 @@ where
         + Allocator<D, D>
         + Allocator<Super::Dim>
         + Allocator<D>
-        + Allocator<D, S::SensiDim>
-        + Allocator<S::SensiDim, D>
+        + Allocator<D, S::CorDim>
+        + Allocator<S::CorDim, D>
         + Allocator<Super::Dim, D>
         + Allocator<D, Super::Dim>
-        + Allocator<Super::Dim, S::SensiDim>
-        + Allocator<S::SensiDim, Super::Dim>,
+        + Allocator<Super::Dim, S::CorDim>
+        + Allocator<S::CorDim, Super::Dim>,
 {
     fn observe(
         &mut self,

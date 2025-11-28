@@ -35,24 +35,25 @@ fn main() -> std::io::Result<()> {
 
         point_clouds
             .into_stream(|point_cloud| {
-                if let CoordinateDataRef::CartesianHigh(points) = point_cloud.data {
-                    let point_start_timestamp = point_cloud.header.timestamp_sec();
-                    let point_end_timestamp = point_cloud.header.end_timestamp_sec();
+                let CoordinateDataRef::CartesianHigh(points) = point_cloud.data else {
+                    return;
+                };
+                let point_start_timestamp = point_cloud.header.timestamp_sec();
+                let point_end_timestamp = point_cloud.header.end_timestamp_sec();
 
-                    let imu_measurments = stream::block_on(
-                        imu_stream
-                            .drain()
-                            .skip_while(|measurment| measurment.timestamp < point_start_timestamp)
-                            .take_while(|measurment| measurment.timestamp < point_end_timestamp),
-                    );
-                    lio.extend_point_cloud_with_imu(
-                        imu_measurments,
-                        (
-                            point_end_timestamp,
-                            points.iter().map(livox_point_to_mesurement),
-                        ),
-                    );
-                }
+                let imu_measurments = stream::block_on(
+                    imu_stream
+                        .drain()
+                        .skip_while(|measurment| measurment.timestamp < point_start_timestamp)
+                        .take_while(|measurment| measurment.timestamp < point_end_timestamp),
+                );
+                lio.extend_point_cloud_with_imu(
+                    imu_measurments,
+                    (
+                        point_end_timestamp,
+                        points.iter().map(livox_point_to_mesurement),
+                    ),
+                );
             })
             .for_each(drop)
             .await;

@@ -127,14 +127,14 @@ where
     AccState<Super::Element>: SubStateOf<Super>,
     BiasState<Super::Element>: SubStateOf<Super, Dim = StateDim<AccState<Super::Element>>>,
 {
-    type SensiDim = StateDim<AccState<Super::Element>>;
+    type CorDim = StateDim<AccState<Super::Element>>;
 
     #[inline]
     fn correlate_to<D: Dim>(
         s: &AnyStorageMatrix!(Super::Element, D, Super::Dim),
-    ) -> AnyStorageMatrix!(Super::Element, D, Self::SensiDim)
+    ) -> AnyStorageMatrix!(Super::Element, D, Self::CorDim)
     where
-        DefaultAllocator: Allocator<D, Self::SensiDim>,
+        DefaultAllocator: Allocator<D, Self::CorDim>,
     {
         UnbiasedState::<AccState<Super::Element>>::correlate_to(s)
             + UnbiasedState::<BiasState<Super::Element>>::correlate_to(s)
@@ -143,9 +143,9 @@ where
     #[inline]
     fn correlate_from<D: Dim>(
         s: &AnyStorageMatrix!(Super::Element, Super::Dim, D),
-    ) -> AnyStorageMatrix!(Super::Element, Self::SensiDim, D)
+    ) -> AnyStorageMatrix!(Super::Element, Self::CorDim, D)
     where
-        DefaultAllocator: Allocator<Self::SensiDim, D>,
+        DefaultAllocator: Allocator<Self::CorDim, D>,
     {
         UnbiasedState::<AccState<Super::Element>>::correlate_from(s)
             + UnbiasedState::<BiasState<Super::Element>>::correlate_from(s)

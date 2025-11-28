@@ -70,7 +70,7 @@ pub struct ProcessCovConfig<T> {
 
 impl<T> ImuInit<T>
 where
-    T: RealField + ToRadians
+    T: RealField + ToRadians,
 {
     pub fn new_lio(self, lio_config: Config<T>) -> LIO<T> {
         LIO::new(lio_config, self)
@@ -79,7 +79,7 @@ where
 
 impl<T> LIO<T>
 where
-    T: RealField + ToRadians
+    T: RealField + ToRadians,
 {
     pub fn new(config: Config<T>, imu_init: ImuInit<T>) -> Self {
         let mut eskf = Eskf::new(config.process_cov.state.into(), imu_init.timestamp_init);
@@ -97,8 +97,28 @@ where
             map: VoxelMap::new(config.voxel_map),
             body_point_process_cov: config.process_cov.body_point,
             extrinsics: config.extrinsics,
-            gravity_factor,
             measure_noise: config.measure_noise,
+            gravity_factor,
+        }
+    }
+
+    /// Create a new LIO instance with a given gravity factor.
+    ///
+    /// This will ignore the `gravity` in [`Config<T>`]
+    pub fn new_with_gravity_factor(
+        config: Config<T>,
+        timestamp_init: T,
+        gravity_factor: T,
+    ) -> Self {
+        let eskf = Eskf::new(config.process_cov.state.into(), timestamp_init);
+
+        Self {
+            eskf,
+            map: VoxelMap::new(config.voxel_map),
+            body_point_process_cov: config.process_cov.body_point,
+            extrinsics: config.extrinsics,
+            measure_noise: config.measure_noise,
+            gravity_factor,
         }
     }
 
@@ -115,7 +135,7 @@ impl<T: RealField> Default for Config<T> {
             measure_noise: Default::default(),
             voxel_map: Default::default(),
             extrinsics: Default::default(),
-            gravity: nalgebra::convert(9.81_f64),
+            gravity: nalgebra::convert(9.81),
         }
     }
 }

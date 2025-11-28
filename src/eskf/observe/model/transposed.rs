@@ -8,7 +8,7 @@ use crate::eskf::state::{KFState, correlation::CorrelateTo};
 pub struct TransposedModel<S, Super: KFState, D: Dim>
 where
     S: CorrelateTo<Super>,
-    DefaultAllocator: Allocator<D, S::SensiDim>,
+    DefaultAllocator: Allocator<D, S::CorDim>,
 {
-    inner: OMatrix<S::Element, D, S::SensiDim>,
+    inner: OMatrix<S::Element, D, S::CorDim>,
 }

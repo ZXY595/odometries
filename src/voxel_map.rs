@@ -3,8 +3,6 @@ mod oct_tree;
 mod residual;
 pub mod uncertain;
 
-use std::ops::Deref;
-
 use nalgebra::{ComplexField, RealField};
 use nohash_hasher::IntMap;
 pub use residual::Residual;
@@ -80,7 +78,7 @@ where
         let root = self
             .roots
             .entry(index)
-            .or_insert_with(|| OctTreeRoot::new(point.deref(), voxel_size.clone()));
+            .or_insert_with(|| OctTreeRoot::new(&point, voxel_size.clone()));
         root.insert(&self.config.plane, point);
     }
 }

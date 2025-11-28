@@ -14,22 +14,22 @@ use crate::{
 /// A observation model that does not apply any transform to the observation.
 pub struct NoModel;
 
-impl<S, Super: KFState> ObserveModel<S, Super, S::SensiDim> for NoModel
+impl<S, Super: KFState> ObserveModel<S, Super, S::CorDim> for NoModel
 where
     S: CorrelateTo<Super>,
 {
     #[inline(always)]
-    fn new_with_dim(_: S::SensiDim) -> Self {
+    fn new_with_dim(_: S::CorDim) -> Self {
         Self
     }
 
     #[inline(always)]
     fn mul<D2: Dim>(
         &self,
-        rhs: AnyStorageMatrix!(Super::Element, S::SensiDim, D2),
-    ) -> AnyStorageMatrix!(Super::Element, S::SensiDim, D2)
+        rhs: AnyStorageMatrix!(Super::Element, S::CorDim, D2),
+    ) -> AnyStorageMatrix!(Super::Element, S::CorDim, D2)
     where
-        DefaultAllocator: Allocator<S::SensiDim, D2>,
+        DefaultAllocator: Allocator<S::CorDim, D2>,
     {
         rhs
     }
@@ -37,10 +37,10 @@ where
     #[inline(always)]
     fn tr_mul<D2: Dim>(
         &self,
-        lhs: AnyStorageMatrix!(Super::Element, D2, S::SensiDim),
-    ) -> AnyStorageMatrix!(Super::Element, D2, S::SensiDim)
+        lhs: AnyStorageMatrix!(Super::Element, D2, S::CorDim),
+    ) -> AnyStorageMatrix!(Super::Element, D2, S::CorDim)
     where
-        DefaultAllocator: Allocator<D2, S::SensiDim>,
+        DefaultAllocator: Allocator<D2, S::CorDim>,
     {
         lhs
     }
@@ -50,11 +50,11 @@ impl<S, Super> NoModelObservation<S, Super>
 where
     Super: KFState<Element: RealField>,
     S: CorrelateTo<Super, Element = Super::Element>,
-    DefaultAllocator: Allocator<S::SensiDim>,
+    DefaultAllocator: Allocator<S::CorDim>,
 {
     pub fn new_no_model(
-        measurement: OVector<S::Element, S::SensiDim>,
-        noise: OVector<S::Element, S::SensiDim>,
+        measurement: OVector<S::Element, S::CorDim>,
+        noise: OVector<S::Element, S::CorDim>,
     ) -> Self {
         Self {
             measurement,

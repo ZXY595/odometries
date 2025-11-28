@@ -14,6 +14,7 @@ use nalgebra::{
 use num_traits::Zero;
 use simba::scalar::SupersetOf;
 
+#[derive(Debug)]
 pub struct Plane<T: Scalar> {
     pub normal: Vector3<T>,
     pub center: WorldPoint<T>,
@@ -106,23 +107,26 @@ where
 
         let covariance = points
             .iter()
-            .map(|uncertain_point| {
+            .map(|point| {
                 let points_count: T = nalgebra::convert(points_count as f64);
 
-                let rows: [RowVector3<T>; 3] = std::array::from_fn(|i| {
-                    if i == min_eigen_index {
-                        return RowVector3::zeros();
-                    }
-                    let eigenvector = eigenvectors.column(i);
+                let rows = eigenvalues
+                    .iter()
+                    .zip(eigenvectors.column_iter())
+                    .map(|(eigenvalue, eigenvector)| {
+                        let eigen_diff = min_eigen_value.clone() - eigenvalue.clone();
+                        if eigen_diff.is_zero() {
+                            return RowVector3::zeros();
+                        }
 
-                    // TODO: do we need BLAS here?
-                    (uncertain_point.deref() - &center).transpose()
-                        / (points_count.clone()
-                            * (min_eigen_value.clone() - eigenvalues[i].clone()))
-                        * (&eigenvector * min_eigenvector.transpose()
-                            + &min_eigenvector * eigenvector.transpose())
-                });
-                let normal_error = &eigenvectors * Matrix3::from_rows(&rows);
+                        (point.deref() - &center).transpose() / (points_count.clone() * eigen_diff)
+                            * (&eigenvector * min_eigenvector.transpose()
+                                + &min_eigenvector * eigenvector.transpose())
+                    })
+                    .flat_map(|row| row.data.0.into_iter())
+                    .map(|[x]| x);
+
+                let normal_error = &eigenvectors * Matrix3::from_row_iterator(rows);
                 let position_error = Matrix3::from_diagonal_element(points_count.recip());
 
                 #[expect(clippy::toplevel_ref_arg)]
@@ -130,15 +134,13 @@ where
 
                 // TODO: can we avoid init with zeros?
                 let mut cov = Matrix6::zeros();
-                cov.quadform_tr(T::one(), &error_matrix, &uncertain_point.cov, T::zero());
+                cov.quadform_tr(T::one(), &error_matrix, &point.cov, T::zero());
                 cov
             })
             .sum::<Matrix6<T>>();
 
         let normal = eigenvectors.column(min_eigen_index);
         let radius = eigenvalues.max().sqrt();
-
-        // let distance_to_origin = normal.dot(&center);
 
         Ok(Self::new_with_cov(
             Plane {

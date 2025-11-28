@@ -20,14 +20,6 @@ num-traits = "0.2"
 odometries-macros = { path = "./odometries-macros" }
 simba = "0.9"
 
-[[example]]
-name = "livox"
-path = "example/livox.rs"
-
-[[example]]
-name = "fake_imu"
-path = "example/fake_imu.rs"
-
 [dependencies]
 itertools = "0.14"
 nalgebra.workspace = true

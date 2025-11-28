@@ -50,7 +50,11 @@ where
     Eskf<S>: StatePredictor<DeltaTime<S::Element>>,
     DefaultAllocator: Allocator<S::Dim, S::Dim>,
 {
-    fn update<OB>(&mut self, timestamp: S::Element, f: impl FnOnce(&Self) -> Option<OB>)
+    fn update<OB>(
+        &mut self,
+        timestamp: S::Element,
+        f: impl FnOnce(&Self) -> Option<OB>,
+    ) -> Option<()>
     where
         S::Element: Sub<Output = S::Element> + Clone,
         Eskf<S>: StateObserver<OB>,
@@ -60,13 +64,11 @@ where
         eskf.predict(dt);
         eskf.last_update_time.predict = timestamp.clone();
 
-        let observation = f(self);
-
-        if let Some(ob) = observation {
+        f(self).map(|observation| {
             let eskf = self.borrow_mut();
-            eskf.observe(ob);
+            eskf.observe(observation);
             eskf.last_update_time.observe = timestamp;
-        }
+        })
     }
 }
 

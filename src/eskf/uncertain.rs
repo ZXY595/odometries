@@ -9,6 +9,7 @@ use crate::{
     frame::FramedPoint,
 };
 
+#[derive(Debug)]
 pub struct Uncertained<S>
 where
     S: KFState,
@@ -69,5 +70,15 @@ where
             state: Default::default(),
             cov,
         }
+    }
+}
+
+impl<S> Uncertained<&S>
+where
+    for<'s> &'s S: KFState,
+    DefaultAllocator: for<'s> Allocator<<&'s S as KFState>::Dim, <&'s S as KFState>::Dim>,
+{
+    pub fn as_deref_ref(&self) -> &S {
+        self.state
     }
 }

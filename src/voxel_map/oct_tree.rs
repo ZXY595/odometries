@@ -68,6 +68,7 @@ impl<T: ComplexField> OctTreeRoot<T> {
 }
 
 impl<T: RealField> OctTreeRoot<T> {
+    #[inline]
     pub fn insert(&mut self, config: &PlaneConfig<T>, point: UncertainWorldPoint<T>) {
         OctTreeNode::insert(&None, config, &mut self.storage, point)
     }

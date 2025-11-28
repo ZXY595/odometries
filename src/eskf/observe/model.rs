@@ -19,14 +19,14 @@ where
 
     fn mul<D2: Dim>(
         &self,
-        rhs: AnyStorageMatrix!(Super::Element, S::SensiDim, D2),
+        rhs: AnyStorageMatrix!(Super::Element, S::CorDim, D2),
     ) -> AnyStorageMatrix!(Super::Element, D, D2)
     where
         DefaultAllocator: Allocator<D, D2>;
 
     fn tr_mul<D2: Dim>(
         &self,
-        lhs: AnyStorageMatrix!(Super::Element, D2, S::SensiDim),
+        lhs: AnyStorageMatrix!(Super::Element, D2, S::CorDim),
     ) -> AnyStorageMatrix!(Super::Element, D2, D)
     where
         DefaultAllocator: Allocator<D2, D>;

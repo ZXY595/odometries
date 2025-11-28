@@ -1,21 +1,42 @@
 use std::ops::Deref;
 
-use nalgebra::RealField;
+use nalgebra::{ComplexField, RealField, Vector3};
 
 use crate::eskf::state::common::{AngularAccBiasState, LinearAccState};
 
 use super::ImuMeasuredStamped;
 
-/// The imu initialization, which can be created by
-/// [`impl Iterator<Item = ImuMeasured<T>>::collect`](std::iter::Iterator::collect).
+/// The imu initialization, which can be [`collect`](std::iter::Iterator::collect) by
+/// [`impl Iterator<Item = ImuMeasured<T>>`](super::ImuMeasured).
 ///
 /// Can be used to create odometries that need imu observation.
+///
+/// If you need to initialize the odometries without imu observation, don't use this with all zeros.
+/// Use methods like [`LIO::new_with_gravity_factor`](crate::algorithm::lio::LIO::new_with_gravity_factor) instead.
 #[derive(Debug, Clone)]
 pub struct ImuInit<T> {
     pub linear_acc_norm: T,
     pub linear_acc_mean: LinearAccState<T>,
     pub angular_acc_bias: AngularAccBiasState<T>,
     pub timestamp_init: T,
+}
+
+impl<T> ImuInit<T>
+where
+    T: ComplexField<RealField = T>,
+{
+    pub fn from_gravity(gravity: Vector3<T>) -> Self {
+        Self::from_stamped_gravity(T::zero(), gravity)
+    }
+
+    pub fn from_stamped_gravity(timestamp: T, gravity: Vector3<T>) -> Self {
+        Self {
+            linear_acc_norm: gravity.norm(),
+            linear_acc_mean: LinearAccState::new(gravity),
+            angular_acc_bias: Default::default(),
+            timestamp_init: timestamp,
+        }
+    }
 }
 
 impl<T> FromIterator<ImuMeasuredStamped<T>> for Option<ImuInit<T>>

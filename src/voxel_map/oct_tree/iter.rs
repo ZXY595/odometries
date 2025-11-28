@@ -5,8 +5,7 @@ use nalgebra::{RealField, Scalar, Vector3};
 use crate::voxel_map::uncertain::UncertainWorldPoint;
 
 use super::{
-    OctTree,
-    branch::point_to_coord,
+    OctTree, branch,
     storage::{TreeID, TreeStorage},
 };
 
@@ -47,7 +46,7 @@ impl<'p, 'store, T: RealField> Iterator for DescendIter<'p, 'store, T> {
         match &node.tree {
             OctTree::Branch(branch) => {
                 let center = &node.state.center;
-                let coord = point_to_coord(self.point.deref(), center);
+                let coord = branch::point_to_coord(self.point.deref(), center);
                 let descend_id = branch[&coord].clone()?;
                 self.current = Some(descend_id.clone());
                 Some((descend_id, coord))
