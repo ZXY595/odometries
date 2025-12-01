@@ -29,7 +29,7 @@ type SquareMatrixView<'a, T, R, C, DS> =
 /// │ ┴ │                        │
 /// ┴   ╰────────────────────────╯
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Covariance<S>(pub OwnedSquareMatrix<S::Element, S::Dim>)
 where
     S: KFState,

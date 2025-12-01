@@ -61,15 +61,20 @@ where
         // drop the old plane if it needs update
         let _ = plane.take_if(|_| is_plane_needs_update());
 
-        *plane = match UncertainPlane::from_uncertain_world_points(points, config) {
-            Ok(plane) => Some(plane),
-            Err(PlaneInitError::TooFewPoints) => None,
-            Err(PlaneInitError::EigenValueTooBig) if depth < config.max_layer => {
-                // return and pruning the tree.
-                return Err(std::mem::take(points));
-            }
-            _ => None,
-        };
+        if plane.is_none() {
+            *plane = UncertainPlane::from_uncertain_world_points(points, config).map_or_else(
+                |err| {
+                    if let PlaneInitError::EigenValueTooBig = err
+                        && depth < config.max_layer
+                    {
+                        Err(std::mem::take(points))
+                    } else {
+                        Ok(None)
+                    }
+                },
+                |plane| Ok(Some(plane)),
+            )?;
+        }
 
         let plane_is_full = len >= config.max_points;
 

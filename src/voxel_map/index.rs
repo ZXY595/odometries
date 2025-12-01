@@ -37,8 +37,9 @@ impl<T: ComplexField> ToVoxelCoord<T> for Point3<T> {
 
 impl ToVoxelIndex for Point3<i64> {
     type Index = i64;
+    /// see also Optimized Spatial Hashing for Collision Detection of Deformable Objects, Matthias Teschner et. al., VMV 2003
     #[inline]
     fn to_voxel_index(self) -> Self::Index {
-        ((self.x * 73856093) ^ (self.y * 471943) ^ (self.z * 83492791)) % 10000000
+        ((self.x * 73856093) ^ (self.y * 471944) ^ (self.z * 83492791)) % 10000000
     }
 }

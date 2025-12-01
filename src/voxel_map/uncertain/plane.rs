@@ -55,11 +55,11 @@ impl<T: Scalar> KFState for Plane<T> {
 
 impl<T> Default for Plane<T>
 where
-    T: Scalar + Default + Zero,
+    T: Scalar + Zero,
 {
     fn default() -> Self {
         Self {
-            normal: Default::default(),
+            normal: Vector3::zeros(),
             center: Default::default(),
             radius: T::zero(),
         }
@@ -139,14 +139,13 @@ where
             })
             .sum::<Matrix6<T>>();
 
-        let normal = eigenvectors.column(min_eigen_index);
-        let radius = eigenvalues.max().sqrt();
+        let normal = eigenvectors.column(min_eigen_index).into();
 
         Ok(Self::new_with_cov(
             Plane {
-                normal: normal.into(),
+                normal,
                 center,
-                radius,
+                radius: eigenvalues.max().sqrt(),
             },
             covariance,
         ))

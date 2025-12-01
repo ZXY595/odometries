@@ -9,7 +9,7 @@ use crate::{
     frame::FramedPoint,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Uncertained<S>
 where
     S: KFState,

@@ -89,7 +89,7 @@ impl ToTokens for Input {
             ))
         });
         let (fields_predicates, sub_add_assigns): (Vec<Option<WherePredicate>>, TokenStream2) =
-            fields_add_assign.unzip();
+            fields_add_assign.collect();
 
         let ty_generics = generics.split_for_impl().1;
 

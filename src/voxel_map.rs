@@ -23,33 +23,30 @@ where
 }
 
 pub struct Config<T> {
-    plane: PlaneConfig<T>,
+    pub plane: PlaneConfig<T>,
     /// residual sigma factor, larger value means more uncertain
-    sigma_ratio: T,
-
-    /// downsample leaf size
-    #[expect(unused)]
-    voxel_grid_resolution: T,
+    pub sigma_ratio: T,
 
     /// voxel size in the voxel grid
-    voxel_size: T,
+    pub voxel_size: T,
 
     /// map size for map sliding window
-    #[expect(unused)]
-    map_size: usize,
+    pub map_size: usize,
 
     /// delta pose change threshold to update map sliding window
-    #[expect(unused)]
-    sliding_thresh: T,
+    pub sliding_thresh: T,
 }
 
-impl<T: SupersetOf<f64>> Default for Config<T> {
+impl<T> Default for Config<T>
+where
+    T: Clone + SupersetOf<f64>,
+{
     fn default() -> Self {
+        let voxel_size: T = nalgebra::convert(0.5);
         Self {
             plane: Default::default(),
             sigma_ratio: nalgebra::convert(3.0),
-            voxel_grid_resolution: nalgebra::convert(0.5),
-            voxel_size: nalgebra::convert(0.5),
+            voxel_size,
             map_size: 200,
             sliding_thresh: nalgebra::convert(8.0),
         }

@@ -169,6 +169,19 @@ where
     }
 }
 
+pub trait CollectTo: Iterator {
+    fn collect_to<T>(self, collection: &mut T) -> &mut T
+    where
+        T: Extend<Self::Item>;
+}
+
+impl<I: Iterator> CollectTo for I {
+    fn collect_to<T: Extend<I::Item>>(self, collection: &mut T) -> &mut T {
+        collection.extend(self);
+        collection
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

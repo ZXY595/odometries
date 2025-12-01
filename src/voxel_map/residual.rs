@@ -1,16 +1,17 @@
 use std::cmp::Ordering;
 use std::ops::Deref;
 
-use nalgebra::{ComplexField, RealField, Scalar, Vector3};
+use nalgebra::{ComplexField, RealField, Scalar};
 
 use crate::voxel_map::index::{ToVoxelIndex, VoxelCoord};
+use crate::voxel_map::uncertain::plane::Plane;
 use crate::voxel_map::{index::ToVoxelCoord, uncertain::UncertainWorldPoint};
 
 use super::VoxelMap;
 use super::oct_tree::OctTreeRoot;
 
 pub struct Residual<'a, T: Scalar> {
-    pub plane_normal: &'a Vector3<T>,
+    pub plane: &'a Plane<T>,
     pub distance_to_plane: T,
     pub sigma: T,
     distance_to_plane_squared: T,
@@ -85,7 +86,7 @@ where
             .map(|(plane, distance_to_plane, distance_to_plane_squared)| {
                 let sigma = plane.sigma_to(point);
                 Residual {
-                    plane_normal: &plane.normal,
+                    plane: plane.deref(),
                     distance_to_plane,
                     distance_to_plane_squared,
                     sigma_sqrt: sigma.clone().sqrt(),
@@ -110,6 +111,10 @@ where
 }
 
 impl<'a, T: RealField> Residual<'a, T> {
+    pub fn plane_normal(&self) -> &nalgebra::Vector3<T> {
+        &self.plane.normal
+    }
+
     fn probability(&self) -> T {
         T::one()
             / (self.sigma_sqrt.clone()

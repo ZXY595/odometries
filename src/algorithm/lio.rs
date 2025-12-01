@@ -14,18 +14,27 @@ use crate::{
         Eskf,
         state::common::{GravityState, LinearAccState},
     },
-    frame::{IsometryFramed, frames},
+    frame::{BodyPoint, Framed, IsometryFramed, frames},
     utils::ToRadians,
-    voxel_map::{self, VoxelMap, uncertain::body_point},
+    voxel_map::{
+        self, VoxelMap,
+        uncertain::{UncertainWorldPoint, body_point},
+    },
 };
 
-use nalgebra::{ComplexField, RealField, Scalar};
+use nalgebra::{ComplexField, Matrix3, RealField, Scalar};
 
 pub use body_point::ProcessCov as BodyPointProcessCov;
 pub use measurement::MeasureNoiseConfig;
 pub use predict::ProcessCovConfig as StateProcessCovConfig;
 
 pub use measurement::{ImuInit, ImuMeasured, ImuMeasuredStamped};
+
+pub type PointsProcessBuffer<T> = Vec<(
+    BodyPoint<T>,
+    UncertainWorldPoint<T>,
+    Framed<Matrix3<T>, frames::Imu>,
+)>;
 
 /// # Input
 /// ```text
@@ -48,6 +57,7 @@ where
 {
     eskf: Eskf<State<T>>,
     map: VoxelMap<T>,
+    points_process_buffer: PointsProcessBuffer<T>,
     // configs
     body_point_process_cov: BodyPointProcessCov<T>,
     extrinsics: IsometryFramed<T, fn(frames::Body) -> frames::Imu>,
@@ -61,6 +71,13 @@ pub struct Config<T: Scalar> {
     pub extrinsics: IsometryFramed<T, fn(frames::Body) -> frames::Imu>,
     pub gravity: T,
     pub voxel_map: voxel_map::Config<T>,
+
+    /// downsample leaf size
+    #[expect(unused)]
+    voxel_grid_resolution: T,
+
+    /// The size of the processing buffer used to store the temporary transformed points.
+    pub buffer_init_size: usize,
 }
 
 pub struct ProcessCovConfig<T> {
@@ -99,6 +116,7 @@ where
             extrinsics: config.extrinsics,
             measure_noise: config.measure_noise,
             gravity_factor,
+            points_process_buffer: Vec::with_capacity(config.buffer_init_size),
         }
     }
 
@@ -119,6 +137,7 @@ where
             extrinsics: config.extrinsics,
             measure_noise: config.measure_noise,
             gravity_factor,
+            points_process_buffer: Vec::with_capacity(config.buffer_init_size),
         }
     }
 
@@ -130,12 +149,15 @@ where
 
 impl<T: RealField> Default for Config<T> {
     fn default() -> Self {
+        let voxel_map_config: voxel_map::Config<T> = Default::default();
         Self {
             process_cov: Default::default(),
             measure_noise: Default::default(),
-            voxel_map: Default::default(),
             extrinsics: Default::default(),
+            voxel_grid_resolution: voxel_map_config.voxel_size.clone(),
+            voxel_map: voxel_map_config,
             gravity: nalgebra::convert(9.81),
+            buffer_init_size: 96,
         }
     }
 }

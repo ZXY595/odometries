@@ -10,7 +10,6 @@ use crate::{
         state::{KFState, correlation::CorrelateTo},
     },
 };
-use itertools::MultiUnzip;
 use nalgebra::{
     ClosedAddAssign, ClosedMulAssign, DefaultAllocator, Dim, DimName, Dyn, Matrix, OMatrix,
     OVector, RealField, Scalar, allocator::Allocator,
@@ -119,7 +118,7 @@ where
     where
         I: IntoIterator<Item = ObservationIterItem<S::Element, S::CorDim>>,
     {
-        let (measurement, model, noise) = iter.into_iter().multiunzip();
+        let (measurement, model, noise) = iter.into_iter().collect();
         Self::new(measurement, model, noise)
     }
 }

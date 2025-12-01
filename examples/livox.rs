@@ -9,6 +9,7 @@ use smol::stream::{self, StreamExt};
 
 fn main() -> std::io::Result<()> {
     let lidar_ip = IpConfig::new([192, 168, 1, 10], [192, 168, 1, 190]);
+
     smol::block_on(async {
         let point_clouds = lidar_ip.new_default_point_data_port().await?;
 

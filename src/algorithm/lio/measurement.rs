@@ -29,14 +29,14 @@ where
                 nalgebra::convert(0.01),
                 nalgebra::convert(0.01),
             ),
-            lidar_point: nalgebra::convert(0.01),
+            lidar_point: nalgebra::convert(10.0),
         }
     }
 }
 
 impl<T> LIO<T>
 where
-    T: RealField + ToRadians
+    T: RealField + ToRadians,
 {
     pub fn extend_point_cloud_with_imu<'a, P>(
         &mut self,

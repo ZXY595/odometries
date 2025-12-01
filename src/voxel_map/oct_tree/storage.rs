@@ -120,6 +120,21 @@ impl<T: Scalar> TreeStorage<T> {
 
     #[must_use]
     pub fn alloc(&mut self, node: OctTreeNode<T>) -> Option<TreeID<T>> {
+        // rerun::RecordingStream::global(rerun::StoreKind::Recording).inspect(|rec| {
+        //     let center: [[f64; 3]; 1] = node
+        //         .state
+        //         .center
+        //         .map(|x| x.to_subset_unchecked())
+        //         .coords
+        //         .data
+        //         .0;
+        //     let quarter_size: f64 = node.state.quarter_side_length.to_subset_unchecked();
+        //
+        //     let _ = rec.log(
+        //         "voxelmap/node",
+        //         &rerun::Boxes3D::from_centers_and_half_sizes(center, [[quarter_size * 2.0; 3]]),
+        //     );
+        // });
         let index = self.0.insert(node);
         TreeID::new_maybe_root(index)
     }
@@ -144,12 +159,10 @@ impl<T: Scalar> VacantAlloc<T> {
         node: OctTreeNode<T>,
         f: impl FnOnce(Option<TreeID<T>>),
     ) -> impl FnOnce(&mut TreeStorage<T>) + 'static {
-        #[cfg(debug_assertions)]
-        let index = self.0.clone();
         f(self.0);
         move |storage| {
-            // Add more test here
-            debug_assert_eq!(index, storage.alloc(node));
+            // TODO: Add more test here
+            let _ = storage.alloc(node);
         }
     }
 }

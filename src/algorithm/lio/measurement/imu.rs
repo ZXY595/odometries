@@ -6,7 +6,7 @@ use nalgebra::{RealField, Scalar, stack};
 use crate::{
     algorithm::lio::state::State,
     eskf::{
-        StateFilter,
+        Eskf,
         observe::NoModelObservation,
         state::common::{AccState, AccWithBiasState},
     },
@@ -25,22 +25,26 @@ pub struct ImuMeasuredStamped<T: Scalar> {
     pub timestamp: T,
 }
 
-impl<T> LIO<T>
+impl<T> Eskf<State<T>>
 where
     T: RealField + ToRadians,
 {
-    fn observe_imu(&self, imu_acc: &ImuMeasured<T>) -> ImuObserved<T> {
+    fn observe_imu(
+        &self,
+        gravity_factor: T,
+        measure_noise: &AccState<T>,
+        imu_acc: &ImuMeasured<T>,
+    ) -> ImuObserved<T> {
         let linear_acc = imu_acc.linear.deref();
         let angular_acc = imu_acc.angular.deref();
 
         let AccWithBiasState {
             acc: state_acc,
             bias: state_acc_bias,
-        } = &self.eskf.state.acc_with_bias;
+        } = &self.state.acc_with_bias;
 
-        let linear_measured_acc = linear_acc * self.gravity_factor.clone()
-            - state_acc.linear.deref()
-            - state_acc_bias.linear.deref();
+        let linear_measured_acc =
+            linear_acc * gravity_factor - state_acc.linear.deref() - state_acc_bias.linear.deref();
 
         let angular_measured_acc =
             angular_acc - state_acc.angular.deref() - state_acc_bias.angular.deref();
@@ -48,7 +52,7 @@ where
         #[expect(clippy::toplevel_ref_arg)]
         let measurement = stack![linear_measured_acc; angular_measured_acc];
 
-        let noise = &self.measure_noise.imu_acc;
+        let noise = measure_noise;
         #[expect(clippy::toplevel_ref_arg)]
         let noise = stack![noise.linear; noise.angular];
 
@@ -98,7 +102,13 @@ where
                  timestamp,
                  measured,
              }| {
-                self.update(timestamp, |ilo| Some(ilo.observe_imu(&measured)));
+                self.eskf.update(timestamp, |eskf| {
+                    Some(eskf.observe_imu(
+                        self.gravity_factor.clone(),
+                        &self.measure_noise.imu_acc,
+                        &measured,
+                    ))
+                });
             },
         )
     }

@@ -4,10 +4,10 @@ use nalgebra::{Dyn, Matrix3, Point3, RealField, Scalar, Vector3, stack};
 
 use crate::{
     algorithm::lio::state::State,
-    eskf::{StateFilter, observe::UnbiasedObservation, state::common::PoseState},
+    eskf::{Eskf, observe::UnbiasedObservation, state::common::PoseState},
     frame::{BodyPoint, Framed, frames},
-    utils::ToRadians,
-    voxel_map::uncertain::UncertainWorldPoint,
+    utils::{CollectTo, ToRadians},
+    voxel_map::{VoxelMap, uncertain::UncertainWorldPoint},
 };
 
 use super::LIO;
@@ -70,7 +70,8 @@ where
         let imu_to_world = self.eskf.pose.deref();
         let body_to_world = body_to_imu * imu_to_world;
 
-        let mut points = points
+        self.points_process_buffer.clear();
+        points
             .into_iter()
             .map(LidarPoint::to_body_point)
             .map(|body_point| {
@@ -84,35 +85,54 @@ where
                 );
                 (body_point, world_point, cross_matrix_imu)
             })
-            .collect::<Vec<_>>();
+            .collect_to(&mut self.points_process_buffer);
 
-        self.update(timestamp, |ilo| {
-            ilo.observe_points(
-                points
-                    .iter()
-                    .map(|(_, world_point, cross_matrix_imu)| (world_point, cross_matrix_imu)),
-            )
-        })
-        .inspect(|()| {
-            points.iter_mut().for_each(|(body_point, world_point, _)| {
-                *world_point = UncertainWorldPoint::from_body_point(
-                    body_point,
-                    self.body_point_process_cov.clone(),
-                    &self.extrinsics,
-                    self.eskf.pose.deref(),
-                    &body_to_world,
-                    &self.eskf.cov,
+        let is_updated = self
+            .eskf
+            .update(timestamp, |eskf| {
+                eskf.observe_points(
+                    &self.map,
+                    &self.measure_noise.lidar_point,
+                    self.points_process_buffer
+                        .iter()
+                        .map(|(_, world_point, cross_matrix_imu)| (world_point, cross_matrix_imu)),
                 )
-                .0;
-            });
-        });
+            })
+            .is_some();
 
-        self.map
-            .extend(points.into_iter().map(|(_, world_point, _)| world_point));
+        let processing_points = self.points_process_buffer.iter();
+
+        if is_updated {
+            // re-compute the world points based on the updated state
+            processing_points
+                .map(|(body_point, _, _)| {
+                    UncertainWorldPoint::from_body_point(
+                        body_point,
+                        self.body_point_process_cov.clone(),
+                        &self.extrinsics,
+                        self.eskf.pose.deref(),
+                        &body_to_world,
+                        &self.eskf.cov,
+                    )
+                    .0
+                })
+                .collect_to(&mut self.map);
+        } else {
+            processing_points
+                .map(|(_, world_point, _)| world_point.clone())
+                .collect_to(&mut self.map);
+        };
     }
+}
 
+impl<T> Eskf<State<T>>
+where
+    T: RealField + ToRadians,
+{
     fn observe_points<'a>(
         &self,
+        map: &VoxelMap<T>,
+        measure_noise: &T,
         points: impl IntoIterator<
             Item = (
                 &'a UncertainWorldPoint<T>,
@@ -124,19 +144,18 @@ where
         let observation = points
             .into_iter()
             .filter_map(|(world_point, cross_matrix_imu)| {
-                let residual = self.map.get_residual_or_nearest(world_point)?;
+                let residual = map.get_residual_or_nearest(world_point)?;
 
-                let plane_normal = residual.plane_normal;
+                let plane_normal = residual.plane_normal();
                 let cross_matrix_rotation_t_normal =
-                    cross_matrix_imu.deref() * self.eskf.pose.rotation.transpose() * plane_normal;
+                    cross_matrix_imu.deref() * self.pose.rotation.transpose() * plane_normal;
 
                 #[expect(clippy::toplevel_ref_arg)]
                 let model = stack![cross_matrix_rotation_t_normal; plane_normal];
 
-                // TODO: do we really need to [`neg`](std::ops::Neg) this measurement?
                 let measurement = -residual.distance_to_plane;
 
-                let noise = self.measure_noise.lidar_point.clone() * residual.sigma;
+                let noise = measure_noise.clone() * residual.sigma;
 
                 Some((measurement, model, noise))
             })

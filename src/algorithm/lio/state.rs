@@ -1,15 +1,8 @@
-use std::borrow::{Borrow, BorrowMut};
-
 use odometries_macros::{KFState, VectorAddAssign, sub_state_of};
 
-use crate::eskf::{
-    Eskf,
-    state::{common::*, macro_export::*},
-};
+use crate::eskf::state::{common::*, macro_export::*};
 
-use nalgebra::{ComplexField, RealField, Scalar};
-
-use super::LIO;
+use nalgebra::{RealField, Scalar};
 
 #[derive(KFState, VectorAddAssign)]
 #[element(T)]
@@ -49,24 +42,6 @@ where
             gravity: Default::default(),
             acc_with_bias: Default::default(),
         }
-    }
-}
-
-impl<T> Borrow<Eskf<State<T>>> for LIO<T>
-where
-    T: ComplexField,
-{
-    fn borrow(&self) -> &Eskf<State<T>> {
-        &self.eskf
-    }
-}
-
-impl<T> BorrowMut<Eskf<State<T>>> for LIO<T>
-where
-    T: ComplexField,
-{
-    fn borrow_mut(&mut self) -> &mut Eskf<State<T>> {
-        &mut self.eskf
     }
 }
 

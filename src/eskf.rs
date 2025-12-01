@@ -45,41 +45,6 @@ pub trait StateObserver<T> {
     fn observe(&mut self, measurement: T);
 }
 
-pub trait StateFilter<S: KFState>: BorrowMut<Eskf<S>>
-where
-    Eskf<S>: StatePredictor<DeltaTime<S::Element>>,
-    DefaultAllocator: Allocator<S::Dim, S::Dim>,
-{
-    fn update<OB>(
-        &mut self,
-        timestamp: S::Element,
-        f: impl FnOnce(&Self) -> Option<OB>,
-    ) -> Option<()>
-    where
-        S::Element: Sub<Output = S::Element> + Clone,
-        Eskf<S>: StateObserver<OB>,
-    {
-        let eskf = self.borrow_mut();
-        let dt = KFTime::all(timestamp.clone()) - eskf.last_update_time.clone();
-        eskf.predict(dt);
-        eskf.last_update_time.predict = timestamp.clone();
-
-        f(self).map(|observation| {
-            let eskf = self.borrow_mut();
-            eskf.observe(observation);
-            eskf.last_update_time.observe = timestamp;
-        })
-    }
-}
-
-impl<S: KFState, T> StateFilter<S> for T
-where
-    Eskf<S>: StatePredictor<DeltaTime<S::Element>>,
-    DefaultAllocator: Allocator<S::Dim, S::Dim>,
-    T: BorrowMut<Eskf<S>>,
-{
-}
-
 impl<S> Eskf<S>
 where
     S: KFState<Element: One + Zero + SupersetOf<f64>>,
@@ -104,6 +69,32 @@ where
             process_cov,
             last_update_time: KFTime::all(timestamp_init),
         }
+    }
+}
+
+impl<S> Eskf<S>
+where
+    S: KFState<Element: One + Zero + SupersetOf<f64>>,
+    DefaultAllocator: Allocator<S::Dim, S::Dim>,
+    Self: StatePredictor<DeltaTime<S::Element>>,
+{
+    pub fn update<OB>(
+        &mut self,
+        timestamp: S::Element,
+        f: impl FnOnce(&Self) -> Option<OB>,
+    ) -> Option<()>
+    where
+        S::Element: Sub<Output = S::Element> + Clone,
+        Eskf<S>: StateObserver<OB>,
+    {
+        let dt = KFTime::all(timestamp.clone()) - self.last_update_time.clone();
+        self.predict(dt);
+        self.last_update_time.predict = timestamp.clone();
+
+        f(self).map(|observation| {
+            self.observe(observation);
+            self.last_update_time.observe = timestamp;
+        })
     }
 }
 
