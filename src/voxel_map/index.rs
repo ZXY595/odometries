@@ -5,9 +5,9 @@ use std::{
     ops::Deref,
 };
 
-use crate::frame::WorldPoint;
+use crate::frame::FramedPoint;
 
-pub type VoxelIndex<T> = <WorldPoint<T> as ToVoxelIndex<T>>::Index;
+pub type VoxelIndex<T, F> = <FramedPoint<T, F> as ToVoxelIndex<T>>::Index;
 
 pub trait ToVoxelIndex<S> {
     type Index: nohash_hasher::IsEnabled + Eq + Hash;
@@ -17,8 +17,8 @@ pub trait ToVoxelIndex<S> {
     fn to_voxel_index(self) -> Self::Index;
 }
 
-impl<T: ComplexField> ToVoxelIndex<T> for WorldPoint<T> {
-    type Index = WorldPoint<i64>;
+impl<T: ComplexField, F> ToVoxelIndex<T> for FramedPoint<T, F> {
+    type Index = FramedPoint<i64, F>;
 
     #[inline]
     fn as_voxel_index(&self, voxel_size: T) -> Self::Index {
@@ -32,7 +32,7 @@ impl<T: ComplexField> ToVoxelIndex<T> for WorldPoint<T> {
     }
 }
 
-impl Hash for WorldPoint<i64> {
+impl<F> Hash for FramedPoint<i64, F> {
     /// see also Optimized Spatial Hashing for Collision Detection of Deformable Objects, Matthias Teschner et. al., VMV 2003
     fn hash<H>(&self, hasher: &mut H)
     where
@@ -44,12 +44,12 @@ impl Hash for WorldPoint<i64> {
 
 /// The [`Hash`] implementation of [`WorldPoint<i64>`] invokes [`write_i64`](Hasher::write_i64)
 /// method exactly once.
-impl nohash_hasher::IsEnabled for WorldPoint<i64> {}
+impl<F> nohash_hasher::IsEnabled for FramedPoint<i64, F> {}
 
-impl PartialEq for WorldPoint<i64> {
+impl<F> PartialEq for FramedPoint<i64, F> {
     fn eq(&self, other: &Self) -> bool {
         self.deref().eq(other)
     }
 }
 
-impl Eq for WorldPoint<i64> {}
+impl<F> Eq for FramedPoint<i64, F> {}

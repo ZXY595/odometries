@@ -21,19 +21,23 @@ impl<T, F> Framed<T, F> {
             frame: PhantomData,
         }
     }
+
     #[inline]
     pub fn new_with_frame(inner: T, frame: F) -> Self {
         let _ = frame;
         Self::new(inner)
     }
+
     /// Apply a function to the inner value of the `Framed` type.
     #[inline]
     pub fn map_framed<T2>(self, f: impl FnOnce(T) -> T2) -> Framed<T2, F> {
+        let Self { inner, frame } = self;
         Framed {
-            inner: f(self.inner),
-            frame: PhantomData,
+            inner: f(inner),
+            frame,
         }
     }
+
     #[inline]
     pub const fn as_ref(&self) -> Framed<&T, F> {
         let Framed { inner, frame: _ } = self;

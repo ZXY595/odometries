@@ -3,9 +3,11 @@ use std::ops::Deref;
 
 use nalgebra::{ComplexField, RealField, Scalar};
 
+use crate::voxel_map::MapIndex;
+
 use super::{
     VoxelMap,
-    index::{ToVoxelIndex, VoxelIndex},
+    index::ToVoxelIndex,
     oct_tree::OctTreeRoot,
     uncertain::{UncertainWorldPoint, plane::Plane},
 };
@@ -21,7 +23,7 @@ pub struct Residual<'a, T: Scalar> {
 pub struct NoValidResidual<'a, T: ComplexField> {
     /// the root of the oct tree where the residual of the given point was not found
     voxel_root: &'a OctTreeRoot<T>,
-    voxel_index: VoxelIndex<T>,
+    voxel_index: MapIndex<T>,
 }
 
 impl<T> VoxelMap<T>
@@ -57,7 +59,7 @@ where
 
     fn get_residual_by_coord(
         &self,
-        voxel_index: VoxelIndex<T>,
+        voxel_index: MapIndex<T>,
         point: &UncertainWorldPoint<T>,
     ) -> Result<Residual<'_, T>, Option<NoValidResidual<'_, T>>> {
         let voxel_root = self.roots.get(&voxel_index).ok_or(None)?;

@@ -8,17 +8,22 @@ use nohash_hasher::IntMap;
 pub use residual::Residual;
 use simba::scalar::SupersetOf;
 
-use crate::voxel_map::{
-    index::{ToVoxelIndex, VoxelIndex},
-    oct_tree::OctTreeRoot,
-    uncertain::{UncertainWorldPoint, plane::PlaneConfig},
+use crate::{
+    frame::frames,
+    voxel_map::{
+        index::{ToVoxelIndex, VoxelIndex},
+        oct_tree::OctTreeRoot,
+        uncertain::{UncertainWorldPoint, plane::PlaneConfig},
+    },
 };
+
+pub type MapIndex<T> = VoxelIndex<T, frames::World>;
 
 pub struct VoxelMap<T>
 where
     T: ComplexField,
 {
-    roots: IntMap<VoxelIndex<T>, OctTreeRoot<T>>,
+    roots: IntMap<MapIndex<T>, OctTreeRoot<T>>,
     config: Config<T>,
 }
 
