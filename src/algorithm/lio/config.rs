@@ -11,7 +11,8 @@ use nalgebra::{IsometryMatrix3, RealField, Scalar, Translation3};
 use simba::scalar::SupersetOf;
 
 /// The configuration of the LIO algorithm with no need to provide the gravity.
-pub type NoGravityConfig<T> = Config<T, ()>;
+pub type NoGravityConfig<T> = Config<T, NoGravity>;
+pub struct NoGravity;
 
 pub struct Config<T: Scalar, G = T> {
     /// The process noise configuration of the state.
@@ -59,6 +60,13 @@ impl<T: RealField> Default for Config<T> {
     }
 }
 
+impl<T: RealField> Default for NoGravityConfig<T> {
+    #[inline]
+    fn default() -> Self {
+        Config::<T>::default().take_gravity().1
+    }
+}
+
 impl<T: SupersetOf<f64>> Default for ProcessCovConfig<T> {
     fn default() -> Self {
         Self {
@@ -73,7 +81,7 @@ impl<T: Scalar, G> Config<T, G> {
         (
             self.gravity,
             NoGravityConfig {
-                gravity: (),
+                gravity: NoGravity,
                 process_cov: self.process_cov,
                 measure_noise: self.measure_noise,
                 extrinsics: self.extrinsics,
