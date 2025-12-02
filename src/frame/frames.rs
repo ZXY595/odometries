@@ -1,4 +1,4 @@
-use nalgebra::{IsometryMatrix3, Point3, Scalar, U3};
+use nalgebra::{IsometryMatrix3, Matrix3, Point3, Scalar, U3};
 
 use crate::eskf::state::KFState;
 
@@ -18,6 +18,7 @@ pub type ImuFramed<T> = Framed<T, Imu>;
 pub type WorldFramed<T> = Framed<T, World>;
 
 pub type IsometryFramed<T, F> = Framed<IsometryMatrix3<T>, F>;
+pub type CrossMatrixFramed<T, F> = Framed<Matrix3<T>, F>;
 
 pub type FramedPoint<T, F> = Framed<Point3<T>, F>;
 pub type BodyPoint<T> = BodyFramed<Point3<T>>;

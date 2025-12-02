@@ -5,7 +5,7 @@ use nalgebra::{Dyn, Matrix3, Point3, RealField, Scalar, Vector3, stack};
 use crate::{
     algorithm::lio::{downsample::Downsample, state::State},
     eskf::{Eskf, observe::UnbiasedObservation, state::common::PoseState},
-    frame::{BodyPoint, Framed, frames},
+    frame::{BodyPoint, CrossMatrixFramed, Framed, frames},
     utils::{CollectTo, ToRadians},
     voxel_map::{VoxelMap, uncertain::UncertainWorldPoint},
 };
@@ -54,7 +54,7 @@ impl<T: Scalar> LidarPoint<T> for BodyPoint<T> {
 pub type PointsProcessBuffer<T> = Vec<(
     BodyPoint<T>,
     UncertainWorldPoint<T>,
-    Framed<Matrix3<T>, frames::Imu>,
+    CrossMatrixFramed<T, frames::Imu>,
 )>;
 
 impl<T> LIO<T>
