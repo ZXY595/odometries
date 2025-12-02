@@ -3,7 +3,7 @@ mod points;
 
 pub use imu::{ImuInit, ImuMeasured, ImuMeasuredStamped};
 use nalgebra::{RealField, Scalar};
-pub use points::{LidarPoint, PointsStamped};
+pub use points::{LidarPoint, PointsProcessBuffer, PointsStamped};
 use simba::scalar::SupersetOf;
 
 use crate::{eskf::state::common::AccState, utils::ToRadians};

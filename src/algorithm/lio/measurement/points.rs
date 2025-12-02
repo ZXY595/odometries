@@ -3,7 +3,7 @@ use std::ops::Deref;
 use nalgebra::{Dyn, Matrix3, Point3, RealField, Scalar, Vector3, stack};
 
 use crate::{
-    algorithm::lio::state::State,
+    algorithm::lio::{downsample::Downsample, state::State},
     eskf::{Eskf, observe::UnbiasedObservation, state::common::PoseState},
     frame::{BodyPoint, Framed, frames},
     utils::{CollectTo, ToRadians},
@@ -51,6 +51,12 @@ impl<T: Scalar> LidarPoint<T> for BodyPoint<T> {
     }
 }
 
+pub type PointsProcessBuffer<T> = Vec<(
+    BodyPoint<T>,
+    UncertainWorldPoint<T>,
+    Framed<Matrix3<T>, frames::Imu>,
+)>;
+
 impl<T> LIO<T>
 where
     T: RealField + ToRadians,
@@ -68,16 +74,17 @@ where
         points
             .into_iter()
             .map(LidarPoint::to_body_point)
+            .voxel_grid_downsample(&self.downsampler.resolution, &mut self.downsampler.grid)
             .map(|body_point| {
                 let (world_point, cross_matrix_imu) = UncertainWorldPoint::from_body_point(
-                    &body_point,
+                    body_point,
                     self.body_point_process_cov.clone(),
                     body_to_imu,
                     imu_to_world,
                     &body_to_world,
                     &self.eskf.cov,
                 );
-                (body_point, world_point, cross_matrix_imu)
+                (body_point.clone(), world_point, cross_matrix_imu)
             })
             .collect_to(&mut self.points_process_buffer);
 

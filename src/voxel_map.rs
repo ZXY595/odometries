@@ -1,4 +1,4 @@
-mod index;
+pub mod index;
 mod oct_tree;
 mod residual;
 pub mod uncertain;
@@ -8,14 +8,11 @@ use nohash_hasher::IntMap;
 pub use residual::Residual;
 use simba::scalar::SupersetOf;
 
-use crate::{
-    frame::frames,
-    voxel_map::{
-        index::{ToVoxelIndex, VoxelIndex},
-        oct_tree::OctTreeRoot,
-        uncertain::{UncertainWorldPoint, plane::PlaneConfig},
-    },
-};
+use crate::frame::frames;
+
+use index::{ToVoxelIndex, VoxelIndex};
+use oct_tree::OctTreeRoot;
+use uncertain::{UncertainWorldPoint, plane::PlaneConfig};
 
 pub type MapIndex<T> = VoxelIndex<T, frames::World>;
 

@@ -1,12 +1,13 @@
 //! Most of ideas comes from Leg-Kilo
 
+pub mod config;
+pub mod downsample;
 pub mod measurement;
 pub mod predict;
 pub mod state;
 
 use std::ops::Deref;
 
-use simba::scalar::SupersetOf;
 use state::State;
 
 use crate::{
@@ -14,27 +15,17 @@ use crate::{
         Eskf,
         state::common::{GravityState, LinearAccState},
     },
-    frame::{BodyPoint, Framed, IsometryFramed, frames},
+    frame::{IsometryFramed, frames},
     utils::ToRadians,
-    voxel_map::{
-        self, VoxelMap,
-        uncertain::{UncertainWorldPoint, body_point},
-    },
+    voxel_map::VoxelMap,
 };
+pub use config::{BodyPointProcessCov, Config, NoGravityConfig};
+use downsample::Downsampler;
+use measurement::PointsProcessBuffer;
 
-use nalgebra::{ComplexField, Matrix3, RealField, Scalar};
+use nalgebra::{ComplexField, RealField};
 
-pub use body_point::ProcessCov as BodyPointProcessCov;
-pub use measurement::MeasureNoiseConfig;
-pub use predict::ProcessCovConfig as StateProcessCovConfig;
-
-pub use measurement::{ImuInit, ImuMeasured, ImuMeasuredStamped};
-
-pub type PointsProcessBuffer<T> = Vec<(
-    BodyPoint<T>,
-    UncertainWorldPoint<T>,
-    Framed<Matrix3<T>, frames::Imu>,
-)>;
+pub use measurement::{ImuInit, ImuMeasured, ImuMeasuredStamped, MeasureNoiseConfig};
 
 /// # Input
 /// ```text
@@ -57,32 +48,13 @@ where
 {
     eskf: Eskf<State<T>>,
     map: VoxelMap<T>,
+    downsampler: Downsampler<T>,
     points_process_buffer: PointsProcessBuffer<T>,
     // configs
     body_point_process_cov: BodyPointProcessCov<T>,
-    extrinsics: IsometryFramed<T, fn(frames::Body) -> frames::Imu>,
     measure_noise: MeasureNoiseConfig<T>,
+    extrinsics: IsometryFramed<T, fn(frames::Body) -> frames::Imu>,
     gravity_factor: T,
-}
-
-pub struct Config<T: Scalar> {
-    pub process_cov: ProcessCovConfig<T>,
-    pub measure_noise: MeasureNoiseConfig<T>,
-    pub extrinsics: IsometryFramed<T, fn(frames::Body) -> frames::Imu>,
-    pub gravity: T,
-    pub voxel_map: voxel_map::Config<T>,
-
-    /// downsample leaf size
-    #[expect(unused)]
-    voxel_grid_resolution: T,
-
-    /// The size of the processing buffer used to store the temporary transformed points.
-    pub buffer_init_size: usize,
-}
-
-pub struct ProcessCovConfig<T> {
-    pub state: StateProcessCovConfig<T>,
-    pub body_point: BodyPointProcessCov<T>,
 }
 
 impl<T> ImuInit<T>
@@ -99,32 +71,27 @@ where
     T: RealField + ToRadians,
 {
     pub fn new(config: Config<T>, imu_init: ImuInit<T>) -> Self {
-        let mut eskf = Eskf::new(config.process_cov.state.into(), imu_init.timestamp_init);
+        let (gravity, config) = config.take_gravity();
+        let gravity_factor = gravity / imu_init.linear_acc_norm.clone();
 
-        let gravity_factor = config.gravity / imu_init.linear_acc_norm.clone();
+        let mut lio =
+            Self::new_with_gravity_factor(config, imu_init.timestamp_init, gravity_factor.clone());
 
-        let gravity = imu_init.linear_acc_mean.deref() * gravity_factor.clone();
+        let gravity = imu_init.linear_acc_mean.deref() * gravity_factor;
 
+        let eskf = &mut lio.eskf;
         eskf.acc_with_bias.acc.linear = LinearAccState::new(gravity.clone());
         eskf.gravity = GravityState::new(-gravity);
         eskf.acc_with_bias.bias.angular = imu_init.angular_acc_bias;
 
-        Self {
-            eskf,
-            map: VoxelMap::new(config.voxel_map),
-            body_point_process_cov: config.process_cov.body_point,
-            extrinsics: config.extrinsics,
-            measure_noise: config.measure_noise,
-            gravity_factor,
-            points_process_buffer: Vec::with_capacity(config.buffer_init_size),
-        }
+        lio
     }
 
     /// Create a new LIO instance with a given gravity factor.
     ///
-    /// This will ignore the `gravity` in [`Config<T>`]
+    /// This does not need the `gravity` in [`Config<T>`] by providing [`NoGravityConfig<T>`].
     pub fn new_with_gravity_factor(
-        config: Config<T>,
+        config: NoGravityConfig<T>,
         timestamp_init: T,
         gravity_factor: T,
     ) -> Self {
@@ -133,40 +100,17 @@ where
         Self {
             eskf,
             map: VoxelMap::new(config.voxel_map),
-            body_point_process_cov: config.process_cov.body_point,
-            extrinsics: config.extrinsics,
-            measure_noise: config.measure_noise,
-            gravity_factor,
+            downsampler: Downsampler::new(config.downsample_resolution),
             points_process_buffer: Vec::with_capacity(config.buffer_init_size),
+            body_point_process_cov: config.process_cov.body_point,
+            measure_noise: config.measure_noise,
+            extrinsics: config.extrinsics,
+            gravity_factor,
         }
     }
 
     #[inline]
     pub fn get_pose(&self) -> &IsometryFramed<T, fn(frames::Imu) -> frames::World> {
         &self.eskf.pose.0
-    }
-}
-
-impl<T: RealField> Default for Config<T> {
-    fn default() -> Self {
-        let voxel_map_config: voxel_map::Config<T> = Default::default();
-        Self {
-            process_cov: Default::default(),
-            measure_noise: Default::default(),
-            extrinsics: Default::default(),
-            voxel_grid_resolution: voxel_map_config.voxel_size.clone(),
-            voxel_map: voxel_map_config,
-            gravity: nalgebra::convert(9.81),
-            buffer_init_size: 96,
-        }
-    }
-}
-
-impl<T: SupersetOf<f64>> Default for ProcessCovConfig<T> {
-    fn default() -> Self {
-        Self {
-            state: Default::default(),
-            body_point: Default::default(),
-        }
     }
 }
