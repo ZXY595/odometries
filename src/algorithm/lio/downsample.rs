@@ -11,11 +11,11 @@ use crate::{
 };
 
 type GridIndex<T> = VoxelIndex<T, frames::Body>;
-type Grid<T> = HashMap<GridIndex<T>, (usize, BodyPoint<T>)>;
+type VoxelGrid<T> = HashMap<GridIndex<T>, (usize, BodyPoint<T>)>;
 
 pub struct Downsampler<T: ComplexField> {
     pub resolution: T,
-    pub grid: Grid<T>,
+    pub grid: VoxelGrid<T>,
 }
 
 impl<T: ComplexField> Downsampler<T> {
@@ -28,13 +28,16 @@ impl<T: ComplexField> Downsampler<T> {
 }
 
 pub trait Downsample<T: ComplexField>: Iterator<Item = BodyPoint<T>> + Sized {
-    fn voxel_grid_downsample<'map>(
+    /// Downsample the points in [`Iterator`] using voxel grid downsampling.
+    ///
+    /// Note that this will not clear the `&mut` [`Grid<T>`] before downsampling,
+    /// instead, it drain the grid after downsampling is done.
+    /// If this is not desired, you can [`Grid<T>::clear`] the grid by yourself before calling this method.
+    fn voxel_grid_downsample(
         self,
         resolution: &T,
-        grid: &'map mut Grid<T>,
-    ) -> impl Iterator<Item = &'map BodyPoint<T>> + Clone {
-        grid.clear();
-
+        grid: &mut VoxelGrid<T>,
+    ) -> impl Iterator<Item = BodyPoint<T>> {
         // TODO: parallel optimizable
         self.for_each(|point| {
             let index = point.as_voxel_index(resolution.clone());
@@ -47,7 +50,7 @@ pub trait Downsample<T: ComplexField>: Iterator<Item = BodyPoint<T>> + Sized {
                 })
                 .or_insert((1, point));
         });
-        grid.values().map(|(_, point)| point)
+        grid.drain().map(|(_, (_, point))| point)
     }
 }
 

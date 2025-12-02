@@ -77,14 +77,14 @@ where
             .voxel_grid_downsample(&self.downsampler.resolution, &mut self.downsampler.grid)
             .map(|body_point| {
                 let (world_point, cross_matrix_imu) = UncertainWorldPoint::from_body_point(
-                    body_point,
+                    &body_point,
                     self.body_point_process_cov.clone(),
                     body_to_imu,
                     imu_to_world,
                     &body_to_world,
                     &self.eskf.cov,
                 );
-                (body_point.clone(), world_point, cross_matrix_imu)
+                (body_point, world_point, cross_matrix_imu)
             })
             .collect_to(&mut self.points_process_buffer);
 
