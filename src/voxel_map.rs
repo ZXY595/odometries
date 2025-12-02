@@ -9,7 +9,7 @@ pub use residual::Residual;
 use simba::scalar::SupersetOf;
 
 use crate::voxel_map::{
-    index::{ToVoxelCoord, VoxelIndex},
+    index::{ToVoxelIndex, VoxelIndex},
     oct_tree::OctTreeRoot,
     uncertain::{UncertainWorldPoint, plane::PlaneConfig},
 };

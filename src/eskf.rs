@@ -1,9 +1,6 @@
 //! Error‑State Kalman Filter.
 
-use core::{
-    borrow::BorrowMut,
-    ops::{Deref, DerefMut, Sub},
-};
+use core::ops::{Deref, DerefMut, Sub};
 
 use nalgebra::{DefaultAllocator, allocator::Allocator};
 
@@ -74,7 +71,7 @@ where
 
 impl<S> Eskf<S>
 where
-    S: KFState<Element: One + Zero + SupersetOf<f64>>,
+    S: KFState<Element: Sub<Output = S::Element>>,
     DefaultAllocator: Allocator<S::Dim, S::Dim>,
     Self: StatePredictor<DeltaTime<S::Element>>,
 {
@@ -84,8 +81,7 @@ where
         f: impl FnOnce(&Self) -> Option<OB>,
     ) -> Option<()>
     where
-        S::Element: Sub<Output = S::Element> + Clone,
-        Eskf<S>: StateObserver<OB>,
+        Self: StateObserver<OB>,
     {
         let dt = KFTime::all(timestamp.clone()) - self.last_update_time.clone();
         self.predict(dt);
@@ -120,27 +116,8 @@ where
     }
 }
 
-impl<S> core::borrow::Borrow<KFTime<S::Element>> for Eskf<S>
-where
-    S: KFState,
-    DefaultAllocator: Allocator<S::Dim, S::Dim>,
-{
-    fn borrow(&self) -> &KFTime<S::Element> {
-        &self.last_update_time
-    }
-}
-
-impl<S> BorrowMut<KFTime<S::Element>> for Eskf<S>
-where
-    S: KFState,
-    DefaultAllocator: Allocator<S::Dim, S::Dim>,
-{
-    fn borrow_mut(&mut self) -> &mut KFTime<S::Element> {
-        &mut self.last_update_time
-    }
-}
-
 impl<T: Clone> KFTime<T> {
+    #[inline]
     pub fn all(t: T) -> Self {
         Self {
             predict: t.clone(),

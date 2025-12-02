@@ -6,7 +6,7 @@ mod storage;
 use crate::{
     frame::WorldPoint,
     voxel_map::{
-        index::VoxelCoord,
+        index::VoxelIndex,
         oct_tree::{
             branch::Branch,
             leaf::Leaf,
@@ -73,7 +73,7 @@ impl<T: RealField> OctTreeRoot<T> {
         OctTreeNode::insert(&None, config, &mut self.storage, point)
     }
 
-    pub fn nearest_coord(&self, point: &WorldPoint<T>, mut coord: VoxelCoord<T>) -> VoxelCoord<T> {
+    pub fn nearest_voxel(&self, point: &WorldPoint<T>, mut coord: VoxelIndex<T>) -> VoxelIndex<T> {
         let NodeState {
             center,
             quarter_side_length,

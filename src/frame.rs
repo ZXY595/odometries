@@ -1,11 +1,11 @@
 pub mod frames;
 use std::{
     marker::PhantomData,
-    ops::{Add, Deref, DerefMut, Mul, Sub},
+    ops::{Add, Deref, DerefMut, Div, Mul, Sub},
 };
 
 pub use frames::*;
-use nalgebra::{ClosedAddAssign, Scalar, Vector3};
+use nalgebra::{ClosedAddAssign, ClosedDivAssign, Scalar, Vector3};
 
 #[derive(Debug)]
 pub struct Framed<T, F> {
@@ -101,10 +101,10 @@ where
     T1: Sub<T2>,
 {
     type Output = Framed<<T1 as Sub<T2>>::Output, F>;
-    fn sub(self, transform: Framed<T2, F>) -> Self::Output {
+    fn sub(self, other: Framed<T2, F>) -> Self::Output {
         Framed {
-            inner: self.inner - transform.inner,
-            frame: PhantomData,
+            inner: self.inner - other.inner,
+            frame: self.frame,
         }
     }
 }
@@ -114,10 +114,10 @@ where
     &'a T1: Sub<&'a T2>,
 {
     type Output = Framed<<&'a T1 as Sub<&'a T2>>::Output, F>;
-    fn sub(self, transform: &'a Framed<T2, F>) -> Self::Output {
+    fn sub(self, other: &'a Framed<T2, F>) -> Self::Output {
         Framed {
-            inner: self.deref() - transform.deref(),
-            frame: PhantomData,
+            inner: self.deref() - other.deref(),
+            frame: self.frame,
         }
     }
 }
@@ -182,8 +182,21 @@ where
 
     fn add(self, rhs: Vector3<T>) -> Self::Output {
         FramedPoint {
-            inner: &self.inner + rhs,
+            inner: self.deref() + rhs,
             frame: PhantomData,
+        }
+    }
+}
+
+impl<T, F> Div<T> for &FramedPoint<T, F>
+where
+    T: Scalar + ClosedDivAssign,
+{
+    type Output = FramedPoint<T, F>;
+    fn div(self, other: T) -> Self::Output {
+        Framed {
+            inner: self.deref() / other,
+            frame: self.frame,
         }
     }
 }

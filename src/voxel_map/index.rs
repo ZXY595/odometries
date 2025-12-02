@@ -1,45 +1,55 @@
-use nalgebra::{ComplexField, Point3};
+use nalgebra::ComplexField;
 
-use std::hash::Hash;
+use std::{
+    hash::{Hash, Hasher},
+    ops::Deref,
+};
 
-pub type VoxelCoord<T> = <Point3<T> as ToVoxelCoord<T>>::Coord;
-pub type VoxelIndex<T> = <VoxelCoord<T> as ToVoxelIndex>::Index;
+use crate::frame::WorldPoint;
 
-pub trait ToVoxelIndex {
+pub type VoxelIndex<T> = <WorldPoint<T> as ToVoxelIndex<T>>::Index;
+
+pub trait ToVoxelIndex<S> {
     type Index: nohash_hasher::IsEnabled + Eq + Hash;
+
+    fn as_voxel_index(&self, voxel_size: S) -> Self::Index;
+
     fn to_voxel_index(self) -> Self::Index;
 }
 
-pub trait ToVoxelCoord<S> {
-    type Coord: ToVoxelIndex;
-    fn as_voxel_coord(&self, voxel_size: S) -> Self::Coord;
-    fn to_voxel_coord(self) -> Self::Coord;
+impl<T: ComplexField> ToVoxelIndex<T> for WorldPoint<T> {
+    type Index = WorldPoint<i64>;
 
-    fn as_voxel_index(&self, voxel_size: S) -> <Self::Coord as ToVoxelIndex>::Index;
-}
+    #[inline]
+    fn as_voxel_index(&self, voxel_size: T) -> Self::Index {
+        (self / voxel_size).to_voxel_index()
+    }
 
-impl<T: ComplexField> ToVoxelCoord<T> for Point3<T> {
-    type Coord = Point3<i64>;
-    #[inline]
-    fn as_voxel_coord(&self, voxel_size: T) -> Self::Coord {
-        (self / voxel_size).to_voxel_coord()
-    }
-    #[inline]
-    fn to_voxel_coord(self) -> Self::Coord {
-        self.map(|x| x.floor().to_subset_unchecked())
-            .map(|x: f64| x as i64)
-    }
-    #[inline]
-    fn as_voxel_index(&self, voxel_size: T) -> <Self::Coord as ToVoxelIndex>::Index {
-        self.as_voxel_coord(voxel_size).to_voxel_index()
-    }
-}
-
-impl ToVoxelIndex for Point3<i64> {
-    type Index = i64;
-    /// see also Optimized Spatial Hashing for Collision Detection of Deformable Objects, Matthias Teschner et. al., VMV 2003
     #[inline]
     fn to_voxel_index(self) -> Self::Index {
-        ((self.x * 73856093) ^ (self.y * 471944) ^ (self.z * 83492791)) % 10000000
+        self.map_framed_point(|x| x.floor().to_subset_unchecked())
+            .map_framed_point(|x: f64| x as i64)
     }
 }
+
+impl Hash for WorldPoint<i64> {
+    /// see also Optimized Spatial Hashing for Collision Detection of Deformable Objects, Matthias Teschner et. al., VMV 2003
+    fn hash<H>(&self, hasher: &mut H)
+    where
+        H: Hasher,
+    {
+        hasher.write_i64(((self.x * 73856093) ^ (self.y * 471943) ^ (self.z * 83492791)) % 10000000)
+    }
+}
+
+/// The [`Hash`] implementation of [`WorldPoint<i64>`] invokes [`write_i64`](Hasher::write_i64)
+/// method exactly once.
+impl nohash_hasher::IsEnabled for WorldPoint<i64> {}
+
+impl PartialEq for WorldPoint<i64> {
+    fn eq(&self, other: &Self) -> bool {
+        self.deref().eq(other)
+    }
+}
+
+impl Eq for WorldPoint<i64> {}

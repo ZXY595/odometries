@@ -27,6 +27,7 @@ impl<T: Scalar> LidarPoint<T> for [T; 3] {
         BodyPoint::new(point)
     }
 }
+
 impl<T: Scalar> LidarPoint<T> for (T, T, T) {
     #[inline]
     fn to_body_point(self) -> BodyPoint<T> {
@@ -47,13 +48,6 @@ impl<T: Scalar> LidarPoint<T> for BodyPoint<T> {
     #[inline(always)]
     fn to_body_point(self) -> BodyPoint<T> {
         self
-    }
-}
-
-impl<T: Scalar, P: LidarPoint<T>> LidarPoint<T> for (T, P) {
-    #[inline(always)]
-    fn to_body_point(self) -> BodyPoint<T> {
-        self.1.to_body_point()
     }
 }
 

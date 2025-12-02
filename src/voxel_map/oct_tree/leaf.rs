@@ -62,8 +62,9 @@ where
         let _ = plane.take_if(|_| is_plane_needs_update());
 
         if plane.is_none() {
-            *plane = UncertainPlane::from_uncertain_world_points(points, config).map_or_else(
-                |err| {
+            *plane = UncertainPlane::from_uncertain_world_points(points, config)
+                .map(Some)
+                .or_else(|err| {
                     if let PlaneInitError::EigenValueTooBig = err
                         && depth < config.max_layer
                     {
@@ -71,9 +72,7 @@ where
                     } else {
                         Ok(None)
                     }
-                },
-                |plane| Ok(Some(plane)),
-            )?;
+                })?;
         }
 
         let plane_is_full = len >= config.max_points;

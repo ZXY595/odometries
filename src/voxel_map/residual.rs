@@ -3,12 +3,12 @@ use std::ops::Deref;
 
 use nalgebra::{ComplexField, RealField, Scalar};
 
-use crate::voxel_map::index::{ToVoxelIndex, VoxelCoord};
-use crate::voxel_map::uncertain::plane::Plane;
-use crate::voxel_map::{index::ToVoxelCoord, uncertain::UncertainWorldPoint};
-
-use super::VoxelMap;
-use super::oct_tree::OctTreeRoot;
+use super::{
+    VoxelMap,
+    index::{ToVoxelIndex, VoxelIndex},
+    oct_tree::OctTreeRoot,
+    uncertain::{UncertainWorldPoint, plane::Plane},
+};
 
 pub struct Residual<'a, T: Scalar> {
     pub plane: &'a Plane<T>,
@@ -21,7 +21,7 @@ pub struct Residual<'a, T: Scalar> {
 pub struct NoValidResidual<'a, T: ComplexField> {
     /// the root of the oct tree where the residual of the given point was not found
     voxel_root: &'a OctTreeRoot<T>,
-    voxel_coord: VoxelCoord<T>,
+    voxel_index: VoxelIndex<T>,
 }
 
 impl<T> VoxelMap<T>
@@ -32,8 +32,8 @@ where
         &self,
         point: &UncertainWorldPoint<T>,
     ) -> Result<Residual<'_, T>, Option<NoValidResidual<'_, T>>> {
-        let voxel_coord = point.as_voxel_coord(self.config.voxel_size.clone());
-        self.get_residual_by_coord(voxel_coord, point)
+        let voxel_index = point.as_voxel_index(self.config.voxel_size.clone());
+        self.get_residual_by_coord(voxel_index, point)
     }
 
     pub fn get_residual_or_nearest(
@@ -44,10 +44,10 @@ where
             .or_else(|err| {
                 let NoValidResidual {
                     voxel_root,
-                    voxel_coord,
+                    voxel_index,
                 } = err.ok_or(())?;
 
-                let nearest_coord = voxel_root.nearest_coord(point, voxel_coord);
+                let nearest_coord = voxel_root.nearest_voxel(point, voxel_index);
 
                 self.get_residual_by_coord(nearest_coord, point)
                     .map_err(drop)
@@ -57,11 +57,10 @@ where
 
     fn get_residual_by_coord(
         &self,
-        voxel_coord: VoxelCoord<T>,
+        voxel_index: VoxelIndex<T>,
         point: &UncertainWorldPoint<T>,
     ) -> Result<Residual<'_, T>, Option<NoValidResidual<'_, T>>> {
-        let index = voxel_coord.to_voxel_index();
-        let voxel_root = self.roots.get(&index).ok_or(None)?;
+        let voxel_root = self.roots.get(&voxel_index).ok_or(None)?;
         let radius_factor: T = nalgebra::convert(3.0);
 
         // TODO: could be optimized by using `rayon`?
@@ -105,7 +104,7 @@ where
             })
             .ok_or(Some(NoValidResidual {
                 voxel_root,
-                voxel_coord,
+                voxel_index,
             }))
     }
 }
