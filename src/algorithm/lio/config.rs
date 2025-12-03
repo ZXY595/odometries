@@ -55,7 +55,7 @@ impl<T: RealField> Default for Config<T> {
             downsample_resolution: voxel_map_config.voxel_size.clone(),
             voxel_map: voxel_map_config,
             gravity: nalgebra::convert(9.81),
-            buffer_init_size: 96,
+            buffer_init_size: 80,
         }
     }
 }
@@ -78,16 +78,25 @@ impl<T: SupersetOf<f64>> Default for ProcessCovConfig<T> {
 
 impl<T: Scalar, G> Config<T, G> {
     pub fn take_gravity(self) -> (G, NoGravityConfig<T>) {
+        let Self {
+            process_cov,
+            measure_noise,
+            extrinsics,
+            gravity,
+            voxel_map,
+            downsample_resolution,
+            buffer_init_size,
+        } = self;
         (
-            self.gravity,
+            gravity,
             NoGravityConfig {
                 gravity: NoGravity,
-                process_cov: self.process_cov,
-                measure_noise: self.measure_noise,
-                extrinsics: self.extrinsics,
-                voxel_map: self.voxel_map,
-                downsample_resolution: self.downsample_resolution,
-                buffer_init_size: self.buffer_init_size,
+                process_cov,
+                measure_noise,
+                extrinsics,
+                voxel_map,
+                downsample_resolution,
+                buffer_init_size,
             },
         )
     }

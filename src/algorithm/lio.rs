@@ -89,7 +89,7 @@ where
 
     /// Create a new LIO instance with a given gravity factor.
     ///
-    /// This does not need the `gravity` in [`Config<T>`] by providing [`NoGravityConfig<T>`].
+    /// This does not need the `gravity` in [`Config<T>`], provide [`NoGravityConfig<T>`] instead.
     pub fn new_with_gravity_factor(
         config: NoGravityConfig<T>,
         timestamp_init: T,

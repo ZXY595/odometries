@@ -28,11 +28,13 @@ impl<T: ComplexField> Downsampler<T> {
 }
 
 pub trait Downsample<T: ComplexField>: Iterator<Item = BodyPoint<T>> + Sized {
-    /// Downsample the points in [`Iterator`] using voxel grid downsampling.
+    /// Downsample the points by consuming the [`Iterator`] and collect into the `&mut` [`VoxelGrid<T>`].
+    /// After downsampling, a new [`Iterator`] is returned.
     ///
-    /// Note that this will not clear the `&mut` [`Grid<T>`] before downsampling,
+    /// Note that this will not clear the `&mut` [`VoxelGrid<T>`] before downsampling,
     /// instead, it drain the grid after downsampling is done.
-    /// If this is not desired, you can [`Grid<T>::clear`] the grid by yourself before calling this method.
+    /// If this is not desired, you can [`VoxelGrid<T>::clear`] the grid by yourself
+    /// before calling this method.
     fn voxel_grid_downsample(
         self,
         resolution: &T,

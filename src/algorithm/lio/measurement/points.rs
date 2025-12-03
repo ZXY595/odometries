@@ -70,7 +70,9 @@ where
         let imu_to_world = self.eskf.pose.deref();
         let body_to_world = body_to_imu * imu_to_world;
 
-        self.points_process_buffer.clear();
+        debug_assert_eq!(self.points_process_buffer.len(), 0);
+
+        // TODO: parallel optimizable
         points
             .into_iter()
             .map(LidarPoint::to_body_point)
@@ -101,14 +103,15 @@ where
             })
             .is_some();
 
-        let processing_points = self.points_process_buffer.iter();
+        let processing_points = self.points_process_buffer.drain(..);
 
         if is_updated {
+            // TODO: parallel optimizable
             // re-compute the world points based on the updated state
             processing_points
                 .map(|(body_point, _, _)| {
                     UncertainWorldPoint::from_body_point(
-                        body_point,
+                        &body_point,
                         self.body_point_process_cov.clone(),
                         &self.extrinsics,
                         self.eskf.pose.deref(),
@@ -119,8 +122,9 @@ where
                 })
                 .collect_to(&mut self.map);
         } else {
+            // TODO: parallel optimizable
             processing_points
-                .map(|(_, world_point, _)| world_point.clone())
+                .map(|(_, world_point, _)| world_point)
                 .collect_to(&mut self.map);
         };
     }
