@@ -5,6 +5,6 @@
 #![deny(unused_must_use)]
 pub mod algorithm;
 pub mod eskf;
-mod frame;
+pub mod frame;
 mod utils;
 pub mod voxel_map;

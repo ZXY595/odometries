@@ -35,6 +35,31 @@ pub trait Downsample<T: ComplexField>: Iterator<Item = BodyPoint<T>> + Sized {
     /// instead, it drain the grid after downsampling is done.
     /// If this is not desired, you can [`VoxelGrid<T>::clear`] the grid by yourself
     /// before calling this method.
+    ///
+    /// # Example
+    /// ```rust
+    /// use nalgebra::{Point3, vector};
+    /// use odometries::{
+    ///     algorithm::lio::downsample::{Downsample, Downsampler},
+    ///     frame::BodyPoint
+    /// };
+    ///
+    /// let mut downsampler = Downsampler::new(0.5);
+    ///
+    /// let points = [[3.0, 3.0, 0.0], [3.2, 3.2, 0.0], [3.4, 3.4, 0.0]];
+    ///
+    /// let points = points
+    ///     .into_iter()
+    ///     .map(|p| Point3::from(p))
+    ///     .map(BodyPoint::new);
+    ///
+    /// let points = points
+    ///     .voxel_grid_downsample(&downsampler.resolution, &mut downsampler.grid)
+    ///     .collect::<Vec<_>>();
+    ///
+    /// assert_eq!(points.len(), 1);
+    /// assert_eq!(points[0].coords, vector![3.2, 3.2, 0.0]);
+    /// ```
     fn voxel_grid_downsample(
         self,
         resolution: &T,
