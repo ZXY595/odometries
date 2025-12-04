@@ -38,7 +38,7 @@ where
         self.get_residual_by_coord(voxel_index, point)
     }
 
-    pub fn get_residual_or_nearest(
+    pub fn get_or_nearest_residual(
         &self,
         point: &UncertainWorldPoint<T>,
     ) -> Option<Residual<'_, T>> {
@@ -71,13 +71,13 @@ where
             .map(|plane| {
                 let normal = &plane.normal;
                 let distance_to_plane =
-                    (normal.dot(&point.coords) - normal.dot(&plane.center.coords)).abs();
+                    normal.dot(&point.coords) - normal.dot(&plane.center.coords);
                 (plane, distance_to_plane.clone(), distance_to_plane.powi(2))
             })
             .filter(|(plane, _, distance_to_plane_squared)| {
-                let distance_to_center_squared = (point.deref() - &plane.center).norm_squared();
+                let distance_to_center = point.deref() - &plane.center;
                 let range_distance =
-                    (distance_to_center_squared - distance_to_plane_squared.clone()).sqrt();
+                    (distance_to_center.norm_squared() - distance_to_plane_squared.clone()).sqrt();
                 range_distance <= radius_factor.clone() * plane.radius.clone()
             })
             .map(|(plane, distance_to_plane, distance_to_plane_squared)| {
@@ -91,7 +91,7 @@ where
                 }
             })
             .filter(|residual| {
-                residual.distance_to_plane
+                residual.distance_to_plane.clone().abs()
                     < self.config.sigma_ratio.clone() * residual.sigma_sqrt.clone()
             })
             .max_by(|a, b| {

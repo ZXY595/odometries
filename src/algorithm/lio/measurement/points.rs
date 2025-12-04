@@ -160,7 +160,7 @@ where
                     state: residual,
                     cov: residual_cov,
                 } = map
-                    .get_residual_or_nearest(world_point)?
+                    .get_or_nearest_residual(world_point)?
                     .to_uncertained(body_point, body_to_world);
 
                 let plane_normal = residual.plane_normal();
