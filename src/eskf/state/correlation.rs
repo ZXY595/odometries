@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::AnyStorageMatrix;
+use crate::utils::AnyStorageMatrix;
 use nalgebra::{DefaultAllocator, Dim, DimName, allocator::Allocator};
 
 use super::{KFState, SubStateOf};

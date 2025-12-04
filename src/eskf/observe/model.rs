@@ -4,9 +4,10 @@ mod transposed;
 
 use nalgebra::{DefaultAllocator, Dim, allocator::Allocator};
 
-use crate::AnyStorageMatrix;
-
-use crate::eskf::state::{KFState, correlation::CorrelateTo};
+use crate::{
+    eskf::state::{KFState, correlation::CorrelateTo},
+    utils::AnyStorageMatrix,
+};
 
 pub use default::DefaultModel;
 pub use no_model::NoModel;

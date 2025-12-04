@@ -4,11 +4,11 @@ use std::{
 };
 
 use crate::{
-    AnyStorageMatrix,
     eskf::{
         observe::Observation,
         state::{KFState, correlation::CorrelateTo},
     },
+    utils::AnyStorageMatrix,
 };
 use nalgebra::{
     ClosedAddAssign, ClosedMulAssign, DefaultAllocator, Dim, DimName, Dyn, Matrix, OMatrix,

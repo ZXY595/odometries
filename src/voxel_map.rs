@@ -3,6 +3,8 @@ mod oct_tree;
 mod residual;
 pub mod uncertain;
 
+use std::ops::Deref;
+
 use nalgebra::{ComplexField, RealField};
 use nohash_hasher::IntMap;
 pub use residual::Residual;
@@ -12,7 +14,10 @@ use crate::frame::frames;
 
 use index::{ToVoxelIndex, VoxelIndex};
 use oct_tree::OctTreeRoot;
-use uncertain::{UncertainWorldPoint, plane::PlaneConfig};
+use uncertain::{
+    UncertainWorldPoint,
+    plane::{Plane, PlaneConfig},
+};
 
 pub type MapIndex<T> = VoxelIndex<T, frames::World>;
 
@@ -64,6 +69,13 @@ where
             roots: IntMap::default(),
             config,
         }
+    }
+    pub fn planes(&self) -> impl Iterator<Item = &Plane<T>> {
+        // TODO: parallel optimizable
+        self.roots
+            .values()
+            .flat_map(|root| root.iter_planes())
+            .map(|plane| plane.deref())
     }
 }
 

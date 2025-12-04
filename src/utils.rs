@@ -1,4 +1,5 @@
 mod macros;
+pub(crate) use macros::*;
 use nalgebra::{
     Cholesky, ClosedAddAssign, ComplexField, DefaultAllocator, Dim, DimAdd, DimMin, DimMinimum,
     DimSum, Matrix, Matrix3, OMatrix, RawStorageMut, Scalar, U1, Vector3, VectorViewMut,
@@ -6,8 +7,6 @@ use nalgebra::{
 };
 use num_traits::{Zero, float::FloatCore};
 use std::iter::Sum;
-
-use crate::AnyStorageVector;
 
 pub trait ViewDiagonalMut {
     type Element;

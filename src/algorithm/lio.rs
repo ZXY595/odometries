@@ -17,10 +17,10 @@ use crate::{
     },
     frame::{IsometryFramed, frames},
     utils::ToRadians,
-    voxel_map::VoxelMap,
+    voxel_map::{VoxelMap, uncertain::plane::Plane},
 };
 pub use config::{BodyPointProcessCov, Config, NoGravityConfig};
-use downsample::Downsampler;
+use downsample::{Downsampler, ScanDownsampler};
 use measurement::PointsProcessBuffer;
 
 use nalgebra::{ComplexField, RealField};
@@ -48,7 +48,7 @@ where
 {
     eskf: Eskf<State<T>>,
     map: VoxelMap<T>,
-    downsampler: Downsampler<T>,
+    downsampler: ScanDownsampler<T>,
     points_process_buffer: PointsProcessBuffer<T>,
     // configs
     body_point_process_cov: BodyPointProcessCov<T>,
@@ -112,5 +112,10 @@ where
     #[inline]
     pub fn get_pose(&self) -> &IsometryFramed<T, fn(frames::Imu) -> frames::World> {
         &self.eskf.pose.0
+    }
+
+    #[inline]
+    pub fn planes(&self) -> impl Iterator<Item = &Plane<T>> {
+        self.map.planes()
     }
 }

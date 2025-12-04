@@ -41,10 +41,11 @@ where
     pub fn extend_point_cloud_with_imu<'a, P>(
         &mut self,
         imus: impl IntoIterator<Item = ImuMeasuredStamped<T>>,
-        (end_timestamp, points): PointsStamped<'a, T, P>,
+        points: PointsStamped<'a, T, P>,
     ) where
         P: IntoIterator<Item: LidarPoint<T>, IntoIter: Clone> + 'a,
     {
+        let (end_timestamp, points) = points;
         self.extend(imus);
         self.extend_points(end_timestamp, points);
     }

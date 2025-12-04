@@ -4,11 +4,11 @@ use nalgebra::{DefaultAllocator, Dim, OVector, RealField, allocator::Allocator};
 
 use super::ObserveModel;
 use crate::{
-    AnyStorageMatrix,
     eskf::{
         observe::NoModelObservation,
         state::{KFState, correlation::CorrelateTo},
     },
+    utils::AnyStorageMatrix,
 };
 
 /// A observation model that does not apply any transform to the observation.

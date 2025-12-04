@@ -1,13 +1,16 @@
 use std::ops::Deref;
 
-use nalgebra::{Dyn, Matrix3, Point3, RealField, Scalar, Vector3, stack};
+use nalgebra::{Dyn, Point3, RealField, Scalar, Vector3, stack};
 
 use crate::{
     algorithm::lio::{downsample::Downsample, state::State},
-    eskf::{Eskf, observe::UnbiasedObservation, state::common::PoseState},
-    frame::{BodyPoint, CrossMatrixFramed, Framed, frames},
+    eskf::{Eskf, observe::UnbiasedObservation, state::common::PoseState, uncertain::Uncertained},
+    frame::{BodyPoint, CrossMatrixFramed, Framed, IsometryFramed, frames},
     utils::{CollectTo, ToRadians},
-    voxel_map::{VoxelMap, uncertain::UncertainWorldPoint},
+    voxel_map::{
+        VoxelMap,
+        uncertain::{UncertainBodyPoint, UncertainWorldPoint},
+    },
 };
 
 use super::LIO;
@@ -52,7 +55,7 @@ impl<T: Scalar> LidarPoint<T> for BodyPoint<T> {
 }
 
 pub type PointsProcessBuffer<T> = Vec<(
-    BodyPoint<T>,
+    UncertainBodyPoint<T>,
     UncertainWorldPoint<T>,
     CrossMatrixFramed<T, frames::Imu>,
 )>;
@@ -78,12 +81,17 @@ where
             .map(LidarPoint::to_body_point)
             .voxel_grid_downsample(&self.downsampler.resolution, &mut self.downsampler.grid)
             .map(|body_point| {
-                let (world_point, cross_matrix_imu) = UncertainWorldPoint::from_body_point(
-                    &body_point,
-                    self.body_point_process_cov.clone(),
-                    body_to_imu,
+                UncertainBodyPoint::from_body_point(body_point, self.body_point_process_cov.clone())
+            })
+            .map(|body_point| {
+                let imu_point = body_point.deref() * body_to_imu;
+                let cross_matrix_imu = Framed::new(imu_point.coords.cross_matrix());
+
+                let world_point = UncertainWorldPoint::from_uncertain_body_point(
+                    body_point.clone(),
                     imu_to_world,
                     &body_to_world,
+                    cross_matrix_imu.as_ref(),
                     &self.eskf.cov,
                 );
                 (body_point, world_point, cross_matrix_imu)
@@ -96,9 +104,8 @@ where
                 eskf.observe_points(
                     &self.map,
                     &self.measure_noise.lidar_point,
-                    self.points_process_buffer
-                        .iter()
-                        .map(|(_, world_point, cross_matrix_imu)| (world_point, cross_matrix_imu)),
+                    &body_to_world,
+                    self.points_process_buffer.iter(),
                 )
             })
             .is_some();
@@ -109,16 +116,14 @@ where
             // TODO: parallel optimizable
             // re-compute the world points based on the updated state
             processing_points
-                .map(|(body_point, _, _)| {
-                    UncertainWorldPoint::from_body_point(
-                        &body_point,
-                        self.body_point_process_cov.clone(),
-                        &self.extrinsics,
+                .map(|(body_point, _, cross_matrix_imu)| {
+                    UncertainWorldPoint::from_uncertain_body_point(
+                        body_point,
                         self.eskf.pose.deref(),
                         &body_to_world,
+                        cross_matrix_imu.as_ref(),
                         &self.eskf.cov,
                     )
-                    .0
                 })
                 .collect_to(&mut self.map);
         } else {
@@ -138,18 +143,25 @@ where
         &self,
         map: &VoxelMap<T>,
         measure_noise: &T,
+        body_to_world: &IsometryFramed<T, fn(frames::Body) -> frames::World>,
         points: impl IntoIterator<
-            Item = (
-                &'a UncertainWorldPoint<T>,
-                &'a Framed<Matrix3<T>, frames::Imu>,
+            Item = &'a (
+                UncertainBodyPoint<T>,
+                UncertainWorldPoint<T>,
+                CrossMatrixFramed<T, frames::Imu>,
             ),
         >,
     ) -> Option<PointsObserved<T>> {
         // TODO: could this be optimized by using `rayon`?
         let observation = points
             .into_iter()
-            .filter_map(|(world_point, cross_matrix_imu)| {
-                let residual = map.get_residual_or_nearest(world_point)?;
+            .filter_map(|(body_point, world_point, cross_matrix_imu)| {
+                let Uncertained {
+                    state: residual,
+                    cov: residual_cov,
+                } = map
+                    .get_residual_or_nearest(world_point)?
+                    .to_uncertained(body_point, body_to_world);
 
                 let plane_normal = residual.plane_normal();
                 let cross_matrix_rotation_t_normal =
@@ -160,7 +172,7 @@ where
 
                 let measurement = -residual.distance_to_plane;
 
-                let noise = measure_noise.clone() * residual.sigma;
+                let noise = measure_noise.clone() * residual_cov.to_scalar();
 
                 Some((measurement, model, noise))
             })

@@ -32,7 +32,7 @@ fn main() -> std::io::Result<()> {
 
         println!("init imu with 200 samples: \n{imu_init:?}");
 
-        let mut lio = imu_init.new_lio(lio::Config::default());
+        let mut lio = imu_init.new_lio(lio::Config::default().with_mid360_extrinsics());
 
         point_clouds
             .into_stream(|point_cloud| {

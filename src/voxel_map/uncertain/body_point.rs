@@ -22,11 +22,11 @@ impl<T: SupersetOf<f64>> Default for ProcessCov<T> {
     }
 }
 
-impl<'p, T> UncertainBodyPoint<'p, T>
+impl<T> UncertainBodyPoint<T>
 where
     T: RealField + ToRadians,
 {
-    pub fn from_body_point_ref(point: &'p BodyPoint<T>, process_cov: ProcessCov<T>) -> Self {
+    pub fn from_body_point(point: BodyPoint<T>, process_cov: ProcessCov<T>) -> Self {
         let distance = point.coords.norm();
         let direction = point.coords.normalize();
 

@@ -1,21 +1,21 @@
 use std::cmp::Ordering;
 use std::ops::Deref;
 
-use nalgebra::{ComplexField, RealField, Scalar};
+use nalgebra::{ComplexField, RealField, Scalar, U1};
 
-use crate::voxel_map::MapIndex;
+use crate::{eskf::state::KFState, voxel_map::MapIndex};
 
 use super::{
     VoxelMap,
     index::ToVoxelIndex,
     oct_tree::OctTreeRoot,
-    uncertain::{UncertainWorldPoint, plane::Plane},
+    uncertain::{UncertainPlane, UncertainWorldPoint},
 };
 
 pub struct Residual<'a, T: Scalar> {
-    pub plane: &'a Plane<T>,
+    pub plane: &'a UncertainPlane<T>,
     pub distance_to_plane: T,
-    pub sigma: T,
+    sigma: T,
     distance_to_plane_squared: T,
     sigma_sqrt: T,
 }
@@ -71,12 +71,8 @@ where
             .map(|plane| {
                 let normal = &plane.normal;
                 let distance_to_plane =
-                    normal.dot(&point.coords) - normal.dot(&plane.center.coords);
-                (
-                    plane,
-                    distance_to_plane.clone(),
-                    distance_to_plane.clone() * distance_to_plane,
-                )
+                    (normal.dot(&point.coords) - normal.dot(&plane.center.coords)).abs();
+                (plane, distance_to_plane.clone(), distance_to_plane.powi(2))
             })
             .filter(|(plane, _, distance_to_plane_squared)| {
                 let distance_to_center_squared = (point.deref() - &plane.center).norm_squared();
@@ -85,9 +81,9 @@ where
                 range_distance <= radius_factor.clone() * plane.radius.clone()
             })
             .map(|(plane, distance_to_plane, distance_to_plane_squared)| {
-                let sigma = plane.sigma_to(point);
+                let sigma = plane.sigma_to(point).to_scalar();
                 Residual {
-                    plane: plane.deref(),
+                    plane,
                     distance_to_plane,
                     distance_to_plane_squared,
                     sigma_sqrt: sigma.clone().sqrt(),
@@ -112,14 +108,20 @@ where
 }
 
 impl<'a, T: RealField> Residual<'a, T> {
+    #[inline]
     pub fn plane_normal(&self) -> &nalgebra::Vector3<T> {
         &self.plane.normal
     }
 
     fn probability(&self) -> T {
-        T::one()
-            / (self.sigma_sqrt.clone()
-                * (self.distance_to_plane_squared.clone() * nalgebra::convert(-0.5)
-                    / self.sigma.clone()))
+        self.sigma_sqrt.clone().recip()
+            * (self.distance_to_plane_squared.clone() * nalgebra::convert(-0.5)
+                / self.sigma.clone())
+            .exp()
     }
+}
+
+impl<'a, T: Scalar> KFState for Residual<'a, T> {
+    type Element = T;
+    type Dim = U1;
 }

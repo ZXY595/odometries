@@ -149,14 +149,15 @@ where
                 vacant_alloc.alloc(new_leaf, |new_id| branch[&coord] = new_id)(storage);
             }
             (OctTree::Leaf(leaf), _) => {
-                if let Err(points_not_plane) = leaf.insert(config, node.state.depth, point) {
-                    // pruning the leaf and creating a new branch
-                    node.tree = OctTree::Branch(Branch::new());
-                    // TODO: could be optimize using `rayon`
-                    points_not_plane
-                        .into_iter()
-                        .for_each(|point| OctTreeNode::insert(tree_id, config, storage, point));
-                }
+                let Err(points_not_plane) = leaf.insert(config, node.state.depth, point) else {
+                    return;
+                };
+                // pruning the leaf and creating a new branch
+                node.tree = OctTree::Branch(Branch::new());
+                // TODO: could be optimize using `rayon`
+                points_not_plane
+                    .into_iter()
+                    .for_each(|point| OctTreeNode::insert(tree_id, config, storage, point));
             }
             _ => {}
         }

@@ -48,11 +48,6 @@ where
     }
 }
 
-impl<T: Scalar> KFState for Plane<T> {
-    type Element = T;
-    type Dim = U6;
-}
-
 impl<T> Default for Plane<T>
 where
     T: Scalar + Zero,
@@ -64,6 +59,11 @@ where
             radius: T::zero(),
         }
     }
+}
+
+impl<T: Scalar> KFState for Plane<T> {
+    type Element = T;
+    type Dim = U6;
 }
 
 pub enum PlaneInitError {
@@ -151,7 +151,7 @@ where
         ))
     }
 
-    pub fn sigma_to(&self, world_point: &UncertainWorldPoint<T>) -> T {
+    pub fn sigma_to(&self, world_point: &UncertainWorldPoint<T>) -> Matrix1<T> {
         let distance_error = world_point.deref() - &self.center;
         let normal_error = -&self.normal;
 
@@ -161,6 +161,6 @@ where
         let mut sigma = Matrix1::zeros();
         sigma.quadform(T::one(), self.cov.deref(), &error_matrix, T::zero());
         sigma.quadform(T::one(), world_point.cov.deref(), &self.normal, T::one());
-        sigma.to_scalar()
+        sigma
     }
 }

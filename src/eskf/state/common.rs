@@ -1,7 +1,7 @@
 pub(crate) mod marker;
 use crate::{
-    AnyStorageMatrix,
     frame::{IsometryFramed, frames},
+    utils::AnyStorageMatrix,
 };
 
 use super::{

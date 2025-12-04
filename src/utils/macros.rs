@@ -9,16 +9,16 @@
 ///     let _ = h.transpose();
 /// }
 /// ```
-#[macro_export]
 macro_rules! AnyStorageMatrix {
     ( $name:ty, $rows:ty, $cols:ty ) => {
         nalgebra::Matrix<$name, $rows, $cols, impl nalgebra::Storage<$name, $rows, $cols>>
     };
 }
+pub(crate) use AnyStorageMatrix;
 
-#[macro_export]
 macro_rules! AnyStorageVector {
     ( $name:ty, $rows:ty ) => {
         nalgebra::Vector<$name, $rows, impl nalgebra::Storage<$name, $rows, nalgebra::U1>>
     };
 }
+pub(crate) use AnyStorageVector;

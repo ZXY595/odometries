@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use nalgebra::{DefaultAllocator, Matrix3, RealField, Scalar, U3, allocator::Allocator};
 
 use crate::{
@@ -8,9 +10,8 @@ use crate::{
             common::{PositionState, RotationState},
         },
     },
-    frame::{BodyPoint, Framed, IsometryFramed, frames},
-    utils::ToRadians,
-    voxel_map::uncertain::{UncertainBodyPoint, body_point},
+    frame::{Framed, IsometryFramed, frames},
+    voxel_map::uncertain::UncertainBodyPoint,
 };
 
 use super::UncertainWorldPoint;
@@ -37,7 +38,7 @@ where
         PositionState<T>: SubStateOf<S, Dim = U3>,
         DefaultAllocator: Allocator<S::Dim, S::Dim>,
     {
-        let world_point = body_point.as_deref_ref() * body_to_world;
+        let world_point = body_point.deref() * body_to_world;
         let rot_cov = eskf_cov.sub_covariance::<RotationState<T>>();
         let pos_cov = eskf_cov.sub_covariance::<PositionState<T>>();
 
@@ -56,37 +57,5 @@ where
         );
 
         Self::new_with_cov(world_point, cov)
-    }
-
-    pub fn from_body_point<S>(
-        point: &BodyPoint<T>,
-        config: body_point::ProcessCov<T>,
-        body_to_imu: &IsometryFramed<T, fn(frames::Body) -> frames::Imu>,
-        imu_to_world: &IsometryFramed<T, fn(frames::Imu) -> frames::World>,
-        body_to_world: &IsometryFramed<T, fn(frames::Body) -> frames::World>,
-        eskf_cov: &Covariance<S>,
-    ) -> (Self, Framed<Matrix3<T>, frames::Imu>)
-    where
-        T: ToRadians,
-        S: KFState<Element = T>,
-        RotationState<T>: SubStateOf<S, Dim = U3>,
-        PositionState<T>: SubStateOf<S, Dim = U3>,
-        DefaultAllocator: Allocator<S::Dim, S::Dim>,
-    {
-        let body_point = UncertainBodyPoint::<T>::from_body_point_ref(point, config);
-
-        let imu_point = body_point.as_deref_ref() * body_to_imu;
-        let cross_matrix_imu = imu_point.coords.cross_matrix();
-
-        (
-            Self::from_uncertain_body_point(
-                body_point,
-                imu_to_world,
-                body_to_world,
-                Framed::new(&cross_matrix_imu),
-                eskf_cov,
-            ),
-            Framed::new(cross_matrix_imu),
-        )
     }
 }

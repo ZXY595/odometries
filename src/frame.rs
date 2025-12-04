@@ -154,12 +154,12 @@ where
 
 impl<'a, T1, T2, F1, F2, F3> Mul<&'a Framed<T2, fn(F2) -> F3>> for &'a Framed<T1, fn(F1) -> F2>
 where
-    &'a T1: Mul<&'a T2>,
+    &'a T2: Mul<&'a T1>,
 {
-    type Output = Framed<<&'a T1 as Mul<&'a T2>>::Output, fn(F1) -> F3>;
+    type Output = Framed<<&'a T2 as Mul<&'a T1>>::Output, fn(F1) -> F3>;
     fn mul(self, transform: &'a Framed<T2, fn(F2) -> F3>) -> Self::Output {
         Framed {
-            inner: self.deref() * transform.deref(),
+            inner: transform.deref() * self.deref(),
             frame: PhantomData,
         }
     }
@@ -167,12 +167,12 @@ where
 
 impl<T1, T2, F1, F2, F3> Mul<Framed<T2, fn(F2) -> F3>> for Framed<T1, fn(F1) -> F2>
 where
-    T1: Mul<T2>,
+    T2: Mul<T1>,
 {
-    type Output = Framed<<T1 as Mul<T2>>::Output, fn(F1) -> F3>;
+    type Output = Framed<<T2 as Mul<T1>>::Output, fn(F1) -> F3>;
     fn mul(self, transform: Framed<T2, fn(F2) -> F3>) -> Self::Output {
         Framed {
-            inner: self.inner * transform.inner,
+            inner: transform.inner * self.inner,
             frame: PhantomData,
         }
     }
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn test_framed_transform() {
-        let p = Point3::new(1.0, 0.0, 0.0);
+        let p = Point3::new(1.0, -1.0, 0.0);
 
         let t1 = IsometryMatrix3::new(
             Vector3::new(1.0, 1.0, 0.0),
@@ -221,14 +221,17 @@ mod tests {
         );
         let body_2_imu = Framed::new_transform(t1, frames::Body, frames::Imu);
 
-        let t2 = IsometryMatrix3::new(Vector3::new(1.0, 1.0, 0.0), Vector3::zeros());
+        let t2 = IsometryMatrix3::new(
+            Vector3::new(2.0, -1.0, 0.0),
+            Vector3::x() * std::f64::consts::PI,
+        );
         let imu_2_world = Framed::new_transform(t2, frames::Imu, frames::World);
 
         let body_2_world = body_2_imu * imu_2_world;
 
         let p = Framed::new_with_frame(p, frames::Body) * body_2_world;
 
-        let distance = nalgebra::distance(&p, &Point3::new(-1.0, 0.0, 0.0));
-        assert!(distance < 1e-6);
+        let distance = nalgebra::distance(&p, &Point3::new(2.0, -3.0, 0.0));
+        assert!(distance < 1e-6, "p: {p:?}");
     }
 }

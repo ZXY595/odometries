@@ -1,28 +1,36 @@
+use itertools::Itertools;
 use nalgebra::{Rotation3, Vector3, vector};
 use odometries::algorithm::lio::{self, LIO};
 
 fn main() {
     let mut lio = LIO::new_with_gravity_factor(lio::NoGravityConfig::default(), 0.0, 1.0);
 
+    let mut rng = rand::rng();
+    use rand::Rng;
+
     // generate fake points stream
     let fake_points = (0..)
         .map(|t| {
-            (
-                t as f64 * 0.0025,
-                Rotation3::from_scaled_axis(
-                    Vector3::z() * core::f64::consts::PI * (2 * t % 180) as f64 / 90.0,
-                ) * vector![
-                    2.0 + rand::random::<f64>() * 0.01,
-                    0.0 + rand::random::<f64>() * 0.01,
-                    0.0 + rand::random::<f64>() * 0.01,
-                ],
-            )
+            Rotation3::from_scaled_axis(
+                Vector3::z() * core::f64::consts::PI * (t % 96) as f64 / 48.0,
+            ) * vector![
+                1.7 + rng.random::<f64>() * 0.005,
+                0.0 + rng.random::<f64>() * 0.005,
+                0.3 + rng.random::<f64>() * 0.01,
+            ]
         })
-        .take(2000);
+        .chunks(96);
+    let fake_points = fake_points
+        .into_iter()
+        .enumerate()
+        .map(|(i, chunk)| ((i * 96) as f64 * 0.00025, chunk))
+        .take(
+            option_env!("STEPS")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(20),
+        );
+    lio.extend(fake_points);
 
-    fake_points.for_each(|(t, point)| {
-        lio.extend_points(t, [point]);
-        let pose = lio.get_pose();
-        println!("{:?}", pose.translation);
-    })
+    let pose = lio.get_pose();
+    println!("{:?}", pose.translation);
 }

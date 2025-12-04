@@ -6,19 +6,21 @@ use std::{
 use nalgebra::ComplexField;
 
 use crate::{
-    frame::{BodyPoint, frames},
+    frame::{FramedPoint, frames},
     voxel_map::index::{ToVoxelIndex, VoxelIndex},
 };
 
-type GridIndex<T> = VoxelIndex<T, frames::Body>;
-type VoxelGrid<T> = HashMap<GridIndex<T>, (usize, BodyPoint<T>)>;
+type GridIndex<T, F> = VoxelIndex<T, F>;
+type VoxelGrid<T, F> = HashMap<GridIndex<T, F>, (usize, FramedPoint<T, F>)>;
 
-pub struct Downsampler<T: ComplexField> {
+pub type ScanDownsampler<T> = Downsampler<T, frames::Body>;
+
+pub struct Downsampler<T: ComplexField, F> {
     pub resolution: T,
-    pub grid: VoxelGrid<T>,
+    pub grid: VoxelGrid<T, F>,
 }
 
-impl<T: ComplexField> Downsampler<T> {
+impl<T: ComplexField, F> Downsampler<T, F> {
     pub fn new(resolution: T) -> Self {
         Self {
             resolution,
@@ -27,7 +29,7 @@ impl<T: ComplexField> Downsampler<T> {
     }
 }
 
-pub trait Downsample<T: ComplexField>: Iterator<Item = BodyPoint<T>> + Sized {
+pub trait Downsample<T: ComplexField, F>: Iterator<Item = FramedPoint<T, F>> + Sized {
     /// Downsample the points by consuming the [`Iterator`] and collect into the `&mut` [`VoxelGrid<T>`].
     /// After downsampling, a new [`Iterator`] is returned.
     ///
@@ -63,8 +65,8 @@ pub trait Downsample<T: ComplexField>: Iterator<Item = BodyPoint<T>> + Sized {
     fn voxel_grid_downsample(
         self,
         resolution: &T,
-        grid: &mut VoxelGrid<T>,
-    ) -> impl Iterator<Item = BodyPoint<T>> {
+        grid: &mut VoxelGrid<T, F>,
+    ) -> impl Iterator<Item = FramedPoint<T, F>> {
         // TODO: parallel optimizable
         self.for_each(|point| {
             let index = point.as_voxel_index(resolution.clone());
@@ -81,9 +83,9 @@ pub trait Downsample<T: ComplexField>: Iterator<Item = BodyPoint<T>> + Sized {
     }
 }
 
-impl<T, I> Downsample<T> for I
+impl<T, F, I> Downsample<T, F> for I
 where
     T: ComplexField,
-    I: Iterator<Item = BodyPoint<T>>,
+    I: Iterator<Item = FramedPoint<T, F>>,
 {
 }

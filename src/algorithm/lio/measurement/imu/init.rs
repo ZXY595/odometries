@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 use nalgebra::{ComplexField, RealField, Vector3};
 
@@ -57,10 +57,15 @@ where
             measured: acc_mean,
         } = iter.fold(first, |mut mean_acc, (i, current_acc)| {
             let n: T = nalgebra::convert(i as f64);
-            mean_acc.measured.linear +=
-                (current_acc.linear.deref() - mean_acc.linear.deref()) / n.clone();
-            mean_acc.measured.angular +=
-                (current_acc.angular.deref() - mean_acc.angular.deref()) / n;
+
+            *mean_acc.linear.deref_mut() = mean_acc
+                .linear
+                .lerp(current_acc.linear.deref(), n.clone().recip());
+
+            *mean_acc.angular.deref_mut() = mean_acc
+                .angular
+                .lerp(current_acc.angular.deref(), n.recip());
+
             mean_acc
         });
 
