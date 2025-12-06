@@ -4,7 +4,7 @@ use nalgebra::{ComplexField, RealField, Vector3};
 
 use crate::eskf::state::common::{AngularAccBiasState, LinearAccState};
 
-use super::ImuMeasuredStamped;
+use super::StampedImu;
 
 /// The imu initialization, which can be [`collect`](std::iter::Iterator::collect) by
 /// [`impl Iterator<Item = ImuMeasured<T>>`](super::ImuMeasured).
@@ -39,20 +39,20 @@ where
     }
 }
 
-impl<T> FromIterator<ImuMeasuredStamped<T>> for Option<ImuInit<T>>
+impl<T> FromIterator<StampedImu<T>> for Option<ImuInit<T>>
 where
     T: RealField,
 {
     fn from_iter<I>(iter: I) -> Self
     where
-        I: IntoIterator<Item = ImuMeasuredStamped<T>>,
+        I: IntoIterator<Item = StampedImu<T>>,
     {
         let mut iter = iter.into_iter().enumerate();
 
         // yield and skip index 0 here
         let (_, first) = iter.next()?;
 
-        let ImuMeasuredStamped {
+        let StampedImu {
             timestamp,
             measured: acc_mean,
         } = iter.fold(first, |mut mean_acc, (i, current_acc)| {
@@ -78,13 +78,13 @@ where
     }
 }
 
-impl<T> Extend<ImuMeasuredStamped<T>> for Option<ImuInit<T>>
+impl<T> Extend<StampedImu<T>> for Option<ImuInit<T>>
 where
     T: RealField,
 {
     fn extend<I>(&mut self, iter: I)
     where
-        I: IntoIterator<Item = ImuMeasuredStamped<T>>,
+        I: IntoIterator<Item = StampedImu<T>>,
     {
         *self = iter.into_iter().collect();
     }

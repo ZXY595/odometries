@@ -17,8 +17,10 @@
 - [x] common wrappers and utils like `Framed` and `Uncertained`.
 - [x] The most generic `ESKF` framework, including `State` and `Measurement` types.
 - [x] Generic `Voxelmap` implementation with `plane` and `uncertain` intergration, based on `slab`.
-- [-] `LIO`: tightly‑coupled lidar imu odometry with `Voxelmap` map storage. But need more document and api works
+- [x] `LIO`: tightly‑coupled lidar imu odometry with `Voxelmap` map storage.
+- [x] Some examples to test the odometry algorithms.
 - [-] `Leg-Kilo`: almost done, which benefit from `LIO` module. But `kinematic` observation works is needed.
 - [ ] `Fast-LIO2`: need `KD-Tree` implementation.
-- [ ] `Fast-LIVO2`: might reuse `LIO` module for lidar and imu observation, but `vision` implementation is needed. The [`kornia`](https://github.com/kornia/kornia-rs) crate could help.
+- [ ] `Fast-LIVO2`: might reuse `LIO` module for lidar and imu observation, but `vision` implementation is needed.
+The crate [`kornia`](https://github.com/kornia/kornia-rs) or the crate [`image`](https://github.com/image-rs/image) with [`imageproc`](https://github.com/image-rs/imageproc.git) could help.
 - [ ] Write a `ROS` example package using [`ros2-client`](https://crates.io/crates/ros2-client) to show how to use this library.

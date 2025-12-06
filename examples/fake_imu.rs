@@ -1,6 +1,6 @@
 use std::pin::pin;
 
-use odometries::algorithm::lio::{self, ImuInit, ImuMeasured, ImuMeasuredStamped};
+use odometries::algorithm::lio::{self, ImuInit, ImuMeasured, StampedImu};
 use smol::stream::StreamExt;
 
 fn main() {
@@ -12,7 +12,7 @@ fn main() {
     })
     .map(|x| ImuMeasured::new(0., 0., 9.81 + x, 0., 0., 0.))
     .enumerate()
-    .map(|(t, measured)| ImuMeasuredStamped::new(t as f64 * interval, measured));
+    .map(|(t, measured)| StampedImu::new(t as f64 * interval, measured));
 
     smol::block_on(async move {
         let mut fake_imu = pin!(fake_imu);

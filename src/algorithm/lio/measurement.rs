@@ -1,9 +1,11 @@
 mod imu;
 mod points;
 
-pub use imu::{ImuInit, ImuMeasured, ImuMeasuredStamped};
+use std::ops::{Deref, DerefMut};
+
+pub use imu::{ImuInit, ImuMeasured, StampedImu};
 use nalgebra::{RealField, Scalar};
-pub use points::{LidarPoint, PointsProcessBuffer, PointsStamped};
+pub use points::{LidarPoint, PointsProcessBuffer, StampedPoints};
 use simba::scalar::SupersetOf;
 
 use crate::{eskf::state::common::AccState, utils::ToRadians};
@@ -13,6 +15,11 @@ use super::LIO;
 pub struct MeasureNoiseConfig<T: Scalar> {
     pub imu_acc: AccState<T>,
     pub lidar_point: T,
+}
+
+pub struct StampedMeasurement<T, M> {
+    pub timestamp: T,
+    pub measured: M,
 }
 
 impl<T> Default for MeasureNoiseConfig<T>
@@ -38,35 +45,78 @@ impl<T> LIO<T>
 where
     T: RealField + ToRadians,
 {
-    pub fn extend_point_cloud_with_imu<'a, P>(
+    pub fn update_points_with_imus<P>(
         &mut self,
-        imus: impl IntoIterator<Item = ImuMeasuredStamped<T>>,
-        points: PointsStamped<'a, T, P>,
+        points: StampedPoints<T, P>,
+        imus: impl IntoIterator<Item = StampedImu<T>>,
     ) where
-        P: IntoIterator<Item: LidarPoint<T>, IntoIter: Clone> + 'a,
+        P: IntoIterator<Item: LidarPoint<T>>,
     {
-        let (end_timestamp, points) = points;
         self.extend(imus);
-        self.extend_points(end_timestamp, points);
+        self.update_stamped_points(points);
     }
 
-    pub fn extend_measurements<'a, P>(
+    pub fn update_point_clouds_with_imus<P>(
         &mut self,
-        point_clouds: impl IntoIterator<Item = PointsStamped<'a, T, P>>,
-        imus: impl IntoIterator<Item = ImuMeasuredStamped<T>>,
+        point_clouds: impl IntoIterator<Item = StampedPoints<T, P>>,
+        imus: impl IntoIterator<Item = StampedImu<T>>,
     ) where
-        P: IntoIterator<Item: LidarPoint<T>, IntoIter: Clone> + 'a,
+        P: IntoIterator<Item: LidarPoint<T>>,
     {
-        let point_clouds = point_clouds.into_iter();
         let mut imus = imus.into_iter();
 
         // TODO: could this be optimized by using `rayon`?
-        point_clouds.for_each(|(points_time, points)| {
+        point_clouds.into_iter().for_each(|points| {
             let imus_before_points = imus
                 .by_ref()
-                .take_while(|imu_measured| imu_measured.timestamp < points_time);
+                .take_while(|imu_measured| imu_measured.timestamp < points.timestamp);
             self.extend(imus_before_points);
-            self.extend_points(points_time, points);
+            self.update_stamped_points(points);
         });
+    }
+}
+
+impl<T: Scalar, M> StampedMeasurement<T, M> {
+    pub const fn new(timestamp: T, measured: M) -> Self {
+        Self {
+            timestamp,
+            measured,
+        }
+    }
+
+    pub fn from_tuple((timestamp, measured): (T, M)) -> Self {
+        Self {
+            timestamp,
+            measured,
+        }
+    }
+}
+
+impl<T: Scalar, M> Deref for StampedMeasurement<T, M> {
+    type Target = M;
+
+    fn deref(&self) -> &Self::Target {
+        &self.measured
+    }
+}
+
+impl<T: Scalar> DerefMut for StampedImu<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.measured
+    }
+}
+
+impl<T, P> Extend<(StampedImu<T>, StampedPoints<T, P>)> for LIO<T>
+where
+    T: RealField + ToRadians,
+    P: IntoIterator<Item: LidarPoint<T>>,
+{
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = (StampedImu<T>, StampedPoints<T, P>)>,
+    {
+        // TODO: could this be optimized by using `rayon`?
+        iter.into_iter()
+            .for_each(|(imu, points)| self.update_points_with_imus(points, [imu]));
     }
 }

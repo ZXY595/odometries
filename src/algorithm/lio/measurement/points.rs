@@ -13,10 +13,9 @@ use crate::{
     },
 };
 
-use super::LIO;
+use super::{LIO, StampedMeasurement};
 
-pub type PointsStamped<'a, T, P> = (T, P);
-
+pub type StampedPoints<T, P> = StampedMeasurement<T, P>;
 pub type PointsObserved<T> = UnbiasedObservation<PoseState<T>, State<T>, Dyn>;
 
 pub trait LidarPoint<T: Scalar>: Clone {
@@ -64,7 +63,15 @@ impl<T> LIO<T>
 where
     T: RealField + ToRadians,
 {
-    pub fn extend_points(
+    #[doc(alias = "update_points")]
+    pub fn update_stamped_points(
+        &mut self,
+        stamped_points: StampedPoints<T, impl IntoIterator<Item = impl LidarPoint<T>>>,
+    ) {
+        self.update_points(stamped_points.timestamp, stamped_points.measured)
+    }
+
+    pub fn update_points(
         &mut self,
         timestamp: T,
         points: impl IntoIterator<Item = impl LidarPoint<T>>,
@@ -185,18 +192,18 @@ where
     }
 }
 
-impl<'a, T, P> Extend<PointsStamped<'a, T, P>> for LIO<T>
+impl<T, P> Extend<StampedPoints<T, P>> for LIO<T>
 where
     T: RealField + ToRadians,
     P: IntoIterator<Item: LidarPoint<T>>,
 {
     fn extend<I>(&mut self, iter: I)
     where
-        I: IntoIterator<Item = (T, P)>,
+        I: IntoIterator<Item = StampedPoints<T, P>>,
     {
         // TODO: could this be optimized by using `rayon`?
-        iter.into_iter().for_each(|(timestamp, points)| {
-            self.extend_points(timestamp, points);
+        iter.into_iter().for_each(|points| {
+            self.update_stamped_points(points);
         });
     }
 }

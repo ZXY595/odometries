@@ -4,7 +4,9 @@ use livox2::{
     lidar_port::{IpConfig, point_data::CoordinateDataRef},
     types::ethernet::{CartesianHighPoint, ImuData as LivoxImuData},
 };
-use odometries::algorithm::lio::{self, ImuInit, ImuMeasured, ImuMeasuredStamped};
+use odometries::algorithm::lio::{
+    self, ImuInit, ImuMeasured, StampedImu, measurement::StampedPoints,
+};
 use smol::stream::{self, StreamExt};
 
 fn main() -> std::io::Result<()> {
@@ -17,7 +19,7 @@ fn main() -> std::io::Result<()> {
             .new_default_imu_port()
             .await?
             .into_stream(|packet| {
-                ImuMeasuredStamped::new(
+                StampedImu::new(
                     packet.header.timestamp as f64 / 1e9,
                     livox_imu_to_mesurement(packet.data),
                 )
@@ -48,13 +50,15 @@ fn main() -> std::io::Result<()> {
                         .skip_while(|measurment| measurment.timestamp < point_start_timestamp)
                         .take_while(|measurment| measurment.timestamp < point_end_timestamp),
                 );
-                lio.extend_point_cloud_with_imu(
-                    imu_measurments,
-                    (
+                lio.update_points_with_imus(
+                    StampedPoints::new(
                         point_end_timestamp,
                         points.iter().map(livox_point_to_mesurement),
                     ),
+                    imu_measurments,
                 );
+                let pose = lio.get_pose();
+                println!("{pose:?}");
             })
             .for_each(drop)
             .await;

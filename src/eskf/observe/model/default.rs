@@ -1,7 +1,4 @@
-use std::{
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-};
+use std::ops::{Deref, DerefMut};
 
 use crate::{
     eskf::{
@@ -91,17 +88,12 @@ where
     S: CorrelateTo<Super, Element = Super::Element>,
     DefaultAllocator: Allocator<D> + Allocator<D, S::CorDim> + Allocator<S::CorDim, D>,
 {
-    pub fn new(
+    pub const fn new(
         measurement: OVector<S::Element, D>,
         model: OMatrix<S::Element, S::CorDim, D>,
         noise: OVector<S::Element, D>,
     ) -> Self {
-        Self {
-            measurement,
-            model: DefaultModel { inner: model },
-            noise,
-            _marker: PhantomData,
-        }
+        Self::from_parts(measurement, DefaultModel { inner: model }, noise)
     }
 }
 

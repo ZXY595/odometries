@@ -1,7 +1,8 @@
 mod init;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 use nalgebra::{RealField, Scalar, stack};
+use num_traits::Zero;
 
 use crate::{
     algorithm::lio::state::State,
@@ -13,17 +14,12 @@ use crate::{
     utils::ToRadians,
 };
 
-use super::LIO;
+use super::{LIO, StampedMeasurement};
 pub use init::ImuInit;
 
 pub type ImuObserved<T> = NoModelObservation<AccWithBiasState<T>, State<T>>;
 pub type ImuMeasured<T> = AccState<T>;
-
-#[derive(Debug)]
-pub struct ImuMeasuredStamped<T: Scalar> {
-    pub measured: ImuMeasured<T>,
-    pub timestamp: T,
-}
+pub type StampedImu<T> = StampedMeasurement<T, ImuMeasured<T>>;
 
 impl<T> Eskf<State<T>>
 where
@@ -57,56 +53,31 @@ where
     }
 }
 
-impl<T: Scalar> ImuMeasuredStamped<T> {
-    pub fn from_tuple((timesstamp, acc_state): (T, ImuMeasured<T>)) -> Self {
-        Self {
-            timestamp: timesstamp,
-            measured: acc_state,
-        }
-    }
-    pub fn new(timestamp: T, acc_state: ImuMeasured<T>) -> Self {
+impl<T: Scalar + Zero> StampedImu<T> {
+    pub fn zeros(timestamp: T) -> Self {
         Self {
             timestamp,
-            measured: acc_state,
+            measured: ImuMeasured::default(),
         }
     }
 }
 
-impl<T: Scalar> Deref for ImuMeasuredStamped<T> {
-    type Target = ImuMeasured<T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.measured
-    }
-}
-
-impl<T: Scalar> DerefMut for ImuMeasuredStamped<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.measured
-    }
-}
-
-impl<T> Extend<ImuMeasuredStamped<T>> for LIO<T>
+impl<T> Extend<StampedImu<T>> for LIO<T>
 where
     T: RealField + ToRadians,
 {
-    fn extend<I>(&mut self, iter: I)
+    fn extend<I>(&mut self, imus: I)
     where
-        I: IntoIterator<Item = ImuMeasuredStamped<T>>,
+        I: IntoIterator<Item = StampedImu<T>>,
     {
-        iter.into_iter().for_each(
-            |ImuMeasuredStamped {
-                 timestamp,
-                 measured,
-             }| {
-                self.eskf.update(timestamp, |eskf| {
-                    Some(eskf.observe_imu(
-                        self.gravity_factor.clone(),
-                        &self.measure_noise.imu_acc,
-                        &measured,
-                    ))
-                });
-            },
-        )
+        imus.into_iter().for_each(|imu| {
+            self.eskf.update(imu.timestamp, |eskf| {
+                Some(eskf.observe_imu(
+                    self.gravity_factor.clone(),
+                    &self.measure_noise.imu_acc,
+                    &imu.measured,
+                ))
+            });
+        })
     }
 }

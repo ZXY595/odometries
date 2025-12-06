@@ -25,7 +25,7 @@ use measurement::PointsProcessBuffer;
 
 use nalgebra::{ComplexField, RealField};
 
-pub use measurement::{ImuInit, ImuMeasured, ImuMeasuredStamped, MeasureNoiseConfig};
+pub use measurement::{ImuInit, ImuMeasured, MeasureNoiseConfig, StampedImu};
 
 /// # Input
 /// ```text

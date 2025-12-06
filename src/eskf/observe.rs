@@ -59,8 +59,22 @@ where
             _marker: PhantomData,
         }
     }
+
     pub fn get_dim(&self) -> D {
         self.measurement.shape_generic().0
+    }
+
+    pub const fn from_parts(
+        measurement: OVector<S::Element, D>,
+        model: M,
+        noise: OVector<S::Element, D>,
+    ) -> Self {
+        Self {
+            measurement,
+            model,
+            noise,
+            _marker: PhantomData,
+        }
     }
 }
 

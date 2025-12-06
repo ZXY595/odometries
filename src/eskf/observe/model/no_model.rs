@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use nalgebra::{DefaultAllocator, Dim, OVector, RealField, allocator::Allocator};
 
 use super::ObserveModel;
@@ -52,15 +50,10 @@ where
     S: CorrelateTo<Super, Element = Super::Element>,
     DefaultAllocator: Allocator<S::CorDim>,
 {
-    pub fn new_no_model(
+    pub const fn new_no_model(
         measurement: OVector<S::Element, S::CorDim>,
         noise: OVector<S::Element, S::CorDim>,
     ) -> Self {
-        Self {
-            measurement,
-            model: NoModel,
-            noise,
-            _marker: PhantomData,
-        }
+        Self::from_parts(measurement, NoModel, noise)
     }
 }

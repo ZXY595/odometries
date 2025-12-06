@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use nalgebra::{Rotation3, Vector3, vector};
-use odometries::algorithm::lio::{self, LIO};
+use odometries::algorithm::lio::{self, LIO, StampedImu, measurement::StampedPoints};
 
 fn main() {
     let mut lio = LIO::new_with_gravity_factor(lio::NoGravityConfig::default(), 0.0, 1.0);
@@ -23,12 +23,17 @@ fn main() {
     let fake_points = fake_points
         .into_iter()
         .enumerate()
-        .map(|(i, chunk)| ((i * 96) as f64 * 0.00025, chunk))
+        .map(|(i, chunk)| StampedPoints::new((i * 96) as f64 * 0.00025, chunk))
         .take(
             option_env!("STEPS")
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(20),
-        );
+                .and_then(|s| {
+                    s.parse()
+                        .inspect_err(|e| eprintln!("Invalid STEPS: {e}"))
+                        .ok()
+                })
+                .unwrap_or(1000),
+        )
+        .map(|points| (StampedImu::zeros(points.timestamp), points));
     lio.extend(fake_points);
 
     let pose = lio.get_pose();
